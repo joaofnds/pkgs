@@ -1,6 +1,6 @@
 {
 	"name": "@joaofnds/streams-connector",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"license": "MIT",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
@@ -30,7 +30,7 @@
 		"typescript": "^5.3.3"
 	},
 	"dependencies": {
-		"@joaofnds/throughput": "^0.1.0",
+		"@joaofnds/throughput": "^0.1.1",
 		"@nestjs/common": "^10.3.3",
 		"@nestjs/event-emitter": "^2.0.4",
 		"redis": "^4.6.13"
