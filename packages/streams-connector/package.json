@@ -1,0 +1,38 @@
+{
+  "name": "@joaofnds/streams-connector",
+  "version": "0.0.0",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "repository": {
+    "url": "https://github.com/joaofnds/pkgs.git",
+    "type": "git",
+    "directory": "packages/streams-connector"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "scripts": {
+    "pretest": "docker compose up -d",
+    "test": "jest",
+    "posttest": "docker compose down",
+    "test:watch": "jest --watch",
+    "build": "rm -rf dist && tsc --build",
+    "build:watch": "tsc -w"
+  },
+  "devDependencies": {
+    "@nestjs/platform-express": "^10.3.3",
+    "@nestjs/testing": "^10.3.3",
+    "@types/jest": "^29.5.12",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@joaofnds/throughput": "*",
+    "@nestjs/common": "^10.3.3",
+    "@nestjs/event-emitter": "^2.0.4",
+    "redis": "^4.6.13"
+  }
+}
