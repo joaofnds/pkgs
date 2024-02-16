@@ -4,27 +4,27 @@ import { StreamsConnectorOptions } from "./options";
 import { StreamsService } from "./service";
 
 export interface StreamsConnectorModuleAsyncOptions {
-  useFactory: (
-    ...args: any[]
-  ) => StreamsConnectorOptions | Promise<StreamsConnectorOptions>;
+	useFactory: (
+		...args: unknown[]
+	) => StreamsConnectorOptions | Promise<StreamsConnectorOptions>;
 	inject?: Array<Type<unknown> | Abstract<unknown>>;
 }
 
 export class StreamsConnectorModule {
-  static registerAsync(
-    options: StreamsConnectorModuleAsyncOptions
-  ): DynamicModule {
-    return {
-      module: StreamsConnectorModule,
-      providers: [
-        {
-          provide: StreamsConnectorOptions,
-          useFactory: options.useFactory,
-          inject: options.inject,
-        },
-        RedisConnection,
-        StreamsService,
-      ],
-    };
-  }
+	static registerAsync(
+		options: StreamsConnectorModuleAsyncOptions,
+	): DynamicModule {
+		return {
+			module: StreamsConnectorModule,
+			providers: [
+				{
+					provide: StreamsConnectorOptions,
+					useFactory: options.useFactory,
+					inject: options.inject,
+				},
+				RedisConnection,
+				StreamsService,
+			],
+		};
+	}
 }

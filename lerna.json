@@ -1,18 +1,19 @@
 {
-  "packages": ["packages/*"],
-  "version": "independent",
-  "npmClient": "npm",
-  "command": {
-    "publish": {
-      "registry": "https://npm.pkg.github.com",
-      "allowBranch": "main"
-    },
-    "version": {
-      "message": "chore(release): publish",
-      "conventionalCommits": true,
-      "changelog": false,
-      "allowBranch": "main",
-      "ignoreChanges": ["**/*.md", ".github/**/*.yaml"]
-    }
-  }
+	"useWorkspaces": true,
+	"packages": ["packages/*"],
+	"version": "independent",
+	"npmClient": "npm",
+	"command": {
+		"publish": {
+			"registry": "https://npm.pkg.github.com",
+			"allowBranch": "main"
+		},
+		"version": {
+			"message": "chore(release): publish",
+			"conventionalCommits": true,
+			"changelog": false,
+			"allowBranch": "main",
+			"ignoreChanges": ["**/*.md", ".github/**/*.yaml"]
+		}
+	}
 }
