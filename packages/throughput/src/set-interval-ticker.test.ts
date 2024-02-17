@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@jest/globals";
-import { SetIntervalTicker } from "../src";
+import { SetIntervalTicker } from "./set-interval-ticker";
 
 describe(SetIntervalTicker, () => {
 	const interval = 10;
@@ -7,7 +7,7 @@ describe(SetIntervalTicker, () => {
 	beforeEach(() => jest.useFakeTimers());
 	afterEach(() => jest.useRealTimers());
 
-	it("calls the function every every X millis", async () => {
+	it("calls the function every X millis", async () => {
 		const ticker = new SetIntervalTicker();
 
 		let calls = 0;

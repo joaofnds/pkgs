@@ -7,8 +7,8 @@ export class Throughput {
 	private readonly windowDuration: number;
 
 	constructor(
-		private readonly probeSize = 60,
-		private readonly probeInterval = 1000,
+		private readonly probeSize: number,
+		private readonly probeInterval: number,
 		private readonly ticker: Ticker = new SetIntervalTicker(),
 		private readonly now = Date.now,
 	) {
@@ -26,10 +26,6 @@ export class Throughput {
 
 	stop() {
 		this.ticker.stop();
-	}
-
-	[Symbol.dispose]() {
-		this.stop();
 	}
 
 	hit() {

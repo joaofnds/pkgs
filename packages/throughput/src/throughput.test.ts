@@ -1,6 +1,6 @@
 import { describe, expect, test } from "@jest/globals";
-import { Throughput } from "../src";
-import { FakeTicker } from "./faker.ticker";
+import { FakeTicker } from "../test/faker.ticker";
+import { Throughput } from "./throughput";
 
 describe(Throughput, () => {
 	test.each([
@@ -69,4 +69,24 @@ describe(Throughput, () => {
 			throughput.stop();
 		},
 	);
+
+	it("reports other time periods", () => {
+		jest.useFakeTimers();
+		const throughput = new Throughput(10, 100); // 10 probes, 100ms interval between probes
+		throughput.start();
+
+		for (let i = 0; i < 10; i++) {
+			throughput.hit();
+			jest.advanceTimersByTime(100);
+		}
+
+		expect(throughput.perWindow()).toBe(1);
+		expect(throughput.perMillisecond()).toBe(1 / 100);
+		expect(throughput.perSecond()).toBe(10);
+		expect(throughput.perMinute()).toBe(600);
+		expect(throughput.perHour()).toBe(36000);
+
+		throughput.stop();
+		jest.useRealTimers();
+	});
 });

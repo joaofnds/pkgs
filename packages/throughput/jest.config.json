@@ -1,7 +1,5 @@
 {
-	"collectCoverageFrom": ["src/**/*.ts"],
-	"coverageDirectory": "coverage",
-	"coveragePathIgnorePatterns": ["node_modules/", "dist/", "test/", ".test.ts"],
+	"coveragePathIgnorePatterns": ["test"],
 	"detectOpenHandles": true,
 	"rootDir": "./",
 	"testEnvironment": "node",
