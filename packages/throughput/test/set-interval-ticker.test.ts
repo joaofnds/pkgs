@@ -1,16 +1,20 @@
 import { describe, expect, it } from "@jest/globals";
 import { SetIntervalTicker } from "../src";
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
 describe(SetIntervalTicker, () => {
+	const interval = 10;
+
+	beforeEach(() => jest.useFakeTimers());
+	afterEach(() => jest.useRealTimers());
+
 	it("calls the function every every X millis", async () => {
 		const ticker = new SetIntervalTicker();
 
-		let calls = 1;
-		ticker.start(() => calls++, 10);
+		let calls = 0;
+		ticker.start(() => calls++, interval);
 
-		await sleep(100);
+		jest.advanceTimersByTime(interval * 10);
+
 		ticker.stop();
 
 		expect(calls).toBe(10);
@@ -19,14 +23,14 @@ describe(SetIntervalTicker, () => {
 	it("stops calling the function after stop()", async () => {
 		const ticker = new SetIntervalTicker();
 
-		let calls = 1;
-		ticker.start(() => calls++, 10);
+		let calls = 0;
+		ticker.start(() => calls++, interval);
 
-		await sleep(50);
+		jest.advanceTimersByTime(interval * 5);
 		ticker.stop();
 		expect(calls).toBe(5);
 
-		await sleep(50);
+		jest.advanceTimersByTime(interval * 10);
 		expect(calls).toBe(5);
 	});
 });
