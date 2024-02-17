@@ -4,21 +4,17 @@
 	"license": "MIT",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
+	"author": "joaofnds <joaofnds@joaofnds.com>",
 	"repository": {
 		"url": "https://github.com/joaofnds/pkgs.git",
 		"type": "git",
 		"directory": "packages/streams-connector"
 	},
-	"publishConfig": {
-		"registry": "https://npm.pkg.github.com"
-	},
 	"scripts": {
 		"pretest": "docker compose up -d",
 		"test": "jest",
 		"posttest": "docker compose down",
-		"test:watch": "jest --watch",
-		"build": "rm -rf dist && tsc --build",
-		"build:watch": "tsc -w"
+		"build": "rm -rf dist && tsc --build"
 	},
 	"devDependencies": {
 		"@nestjs/platform-express": "^10.3.3",

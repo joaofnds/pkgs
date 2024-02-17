@@ -4,13 +4,11 @@
 	"license": "MIT",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
+	"author": "joaofnds <joaofnds@joaofnds.com>",
 	"repository": {
 		"url": "https://github.com/joaofnds/pkgs.git",
 		"type": "git",
 		"directory": "packages/throughput"
-	},
-	"publishConfig": {
-		"registry": "https://npm.pkg.github.com"
 	},
 	"scripts": {
 		"build": "rm -rf dist && tsc --build",
