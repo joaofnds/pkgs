@@ -14,9 +14,12 @@
 	},
 	"scripts": {
 		"build": "rm -rf dist && tsc --build",
-		"test": "exit 0"
+		"test": "jest"
 	},
 	"devDependencies": {
+		"@jest/globals": "^29.7.0",
+		"@swc/jest": "^0.2.36",
+		"jest": "^29.7.0",
 		"typescript": "^5.3.3"
 	}
 }

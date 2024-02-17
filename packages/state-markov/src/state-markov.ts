@@ -1,4 +1,4 @@
-import { UndefinedStateError, assertSumOfWeightsIs1 } from "./errors";
+import { UndefinedStateError } from "./errors";
 import { State } from "./state";
 
 export class StateMarkov {
@@ -22,8 +22,6 @@ export class StateMarkov {
 				neighbors.push(neighbor);
 				weights.push(weight);
 			}
-
-			assertSumOfWeightsIs1(weights);
 
 			state.setWeightedNeighbors(neighbors, weights);
 		}

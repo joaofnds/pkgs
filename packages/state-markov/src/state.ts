@@ -1,4 +1,4 @@
-import { assertSameLength, assertSumOfWeightsIs1 } from "./errors";
+import { assertSameLength, assertSumTo1 } from "./errors";
 import { weightedRandomIndex } from "./random";
 
 export class State {
@@ -9,7 +9,7 @@ export class State {
 
 	setWeightedNeighbors(neighbors: State[], weights: number[]) {
 		assertSameLength(neighbors, weights);
-		assertSumOfWeightsIs1(weights);
+		assertSumTo1(weights);
 
 		this.neighbors = neighbors;
 		this.weights = weights;
