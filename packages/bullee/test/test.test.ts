@@ -1,0 +1,234 @@
+import { BullModule } from "@nestjs/bull";
+import { INestApplication, Injectable } from "@nestjs/common";
+import { EventEmitter2, EventEmitterModule } from "@nestjs/event-emitter";
+import { Test } from "@nestjs/testing";
+import Bull from "bull";
+import {
+	BulleeModule,
+	BulleeService,
+	BulleeServiceConfig,
+	OnBackgroundEvent,
+} from "../src";
+
+describe(BulleeModule.name, () => {
+	const testEventName = "test.event";
+
+	let app: INestApplication;
+	let emitter: TestEmitter;
+	let listenerOne: TestListener;
+	let listenerTwo: TestListener;
+	let queue: Bull.Queue;
+
+	beforeAll(async () => {
+		const module = await Test.createTestingModule({
+			imports: [
+				BullModule.forRoot({}),
+				EventEmitterModule.forRoot({ wildcard: true }),
+				BulleeModule.forRootAsync({
+					useFactory: () =>
+						BulleeServiceConfig.withDefaults({
+							redis: { host: "localhost", port: 6380 },
+						}),
+				}),
+			],
+			providers: [TestEmitter, TestListenerOne, TestListenerTwo],
+		}).compile();
+
+		app = module.createNestApplication();
+		app.enableShutdownHooks();
+
+		await app.init();
+
+		emitter = app.get(TestEmitter);
+		listenerOne = app.get(TestListenerOne);
+		listenerTwo = app.get(TestListenerTwo);
+		queue = app.get(BulleeService).getQueue(testEventName);
+	});
+
+	beforeEach(async () => {
+		listenerOne.clear();
+		listenerTwo.clear();
+		await queue.pause();
+		await queue.obliterate({ force: true });
+		await queue.pause();
+	});
+
+	afterAll(async () => {
+		await app.close();
+	});
+
+	it("only calls listener when the job executes", async () => {
+		await emitter.emit({ foo: "bar" });
+		await emitter.emit({ bar: "baz" });
+		await emitter.emit({ baz: "qux" });
+
+		expect(await queue.getPausedCount()).toBeGreaterThan(0);
+		expect(listenerOne.receivedEvents.length).toBe(0);
+		expect(listenerTwo.receivedEvents.length).toBe(0);
+
+		await drainQueue(queue);
+
+		expect(await queue.getPausedCount()).toBe(0);
+		expect(listenerOne.receivedEvents.length).toBeGreaterThan(0);
+		expect(listenerTwo.receivedEvents.length).toBeGreaterThan(0);
+	});
+
+	it("enqueues a job for each listener and emits them separately", async () => {
+		await emitter.emit({ foo: "bar" });
+		await emitter.emit({ bar: "baz" });
+		await emitter.emit({ baz: "qux" });
+
+		expect(await queue.getWaitingCount()).toEqual(6);
+
+		expect(listenerOne.receivedEvents).toHaveLength(0);
+		expect(listenerTwo.receivedEvents).toHaveLength(0);
+
+		await drainQueue(queue);
+
+		expect(listenerOne.receivedEvents).toEqual([
+			{ foo: "bar" },
+			{ bar: "baz" },
+			{ baz: "qux" },
+		]);
+		expect(listenerTwo.receivedEvents).toEqual([
+			{ foo: "bar" },
+			{ bar: "baz" },
+			{ baz: "qux" },
+		]);
+	});
+
+	describe("when a listener fails", () => {
+		beforeEach(() => {
+			listenerTwo.shouldFail = true;
+		});
+
+		it("does not affect the other listeners", async () => {
+			await emitter.emit({ foo: "bar" });
+			await emitter.emit({ bar: "baz" });
+			await emitter.emit({ baz: "qux" });
+
+			expect(await queue.getWaitingCount()).toEqual(6);
+
+			expect(listenerOne.receivedEvents).toHaveLength(0);
+			expect(listenerTwo.receivedEvents).toHaveLength(0);
+
+			await drainQueue(queue);
+
+			expect(listenerOne.receivedEvents).toEqual([
+				{ foo: "bar" },
+				{ bar: "baz" },
+				{ baz: "qux" },
+			]);
+			expect(listenerTwo.receivedEvents).toEqual([
+				{ foo: "bar" },
+				{ bar: "baz" },
+				{ baz: "qux" },
+				// retries
+				{ foo: "bar" },
+				{ bar: "baz" },
+				{ baz: "qux" },
+			]);
+
+			expect(await queue.getJobCounts()).toEqual(
+				expect.objectContaining({
+					completed: 3, // for listener one
+					failed: 3, // for listener two
+				}),
+			);
+		});
+	});
+
+	describe("when all listeners fail", () => {
+		beforeEach(() => {
+			listenerOne.shouldFail = true;
+			listenerTwo.shouldFail = true;
+		});
+
+		it("retries separately", async () => {
+			await emitter.emit({ foo: "bar" });
+			await emitter.emit({ bar: "baz" });
+			await emitter.emit({ baz: "qux" });
+
+			expect(await queue.getWaitingCount()).toEqual(6);
+
+			expect(listenerOne.receivedEvents).toHaveLength(0);
+			expect(listenerTwo.receivedEvents).toHaveLength(0);
+
+			await drainQueue(queue);
+
+			expect(listenerOne.receivedEvents).toEqual([
+				{ foo: "bar" },
+				{ bar: "baz" },
+				{ baz: "qux" },
+				// retries
+				{ foo: "bar" },
+				{ bar: "baz" },
+				{ baz: "qux" },
+			]);
+			expect(listenerTwo.receivedEvents).toEqual([
+				{ foo: "bar" },
+				{ bar: "baz" },
+				{ baz: "qux" },
+				// retries
+				{ foo: "bar" },
+				{ bar: "baz" },
+				{ baz: "qux" },
+			]);
+
+			expect(await queue.getJobCounts()).toEqual(
+				expect.objectContaining({
+					completed: 0,
+					failed: 6,
+				}),
+			);
+		});
+	});
+
+	async function drainQueue(queue: Bull.Queue) {
+		await queue.resume();
+		while (
+			(await queue.getJobCountByTypes(["active", "delayed", "waiting"])) > 0
+		) {}
+		await queue.pause();
+	}
+
+	@Injectable()
+	class TestEmitter {
+		constructor(private readonly emitter: EventEmitter2) {}
+
+		async emit(payload: unknown) {
+			await this.emitter.emitAsync(testEventName, payload);
+		}
+	}
+
+	class TestListener {
+		readonly receivedEvents: unknown[] = [];
+		shouldFail = false;
+
+		handler(event: unknown) {
+			this.receivedEvents.push(event);
+			if (this.shouldFail) throw new Error("intended test failure");
+		}
+
+		clear() {
+			this.shouldFail = false;
+			this.receivedEvents.length = 0;
+		}
+	}
+
+	@Injectable()
+	class TestListenerOne extends TestListener {
+		@OnBackgroundEvent(testEventName, { job: { attempts: 2, backoff: 0 } })
+		handler(event: unknown) {
+			super.handler(event);
+		}
+	}
+
+	@Injectable()
+	class TestListenerTwo extends TestListener {
+		@OnBackgroundEvent(testEventName, { job: { attempts: 2, backoff: 0 } })
+		handler(event: unknown) {
+			super.handler(event);
+		}
+	}
+});
