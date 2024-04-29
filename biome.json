@@ -10,7 +10,8 @@
 		"enabled": true,
 		"rules": {
 			"recommended": true,
-			"complexity": { "noStaticOnlyClass": "off" }
+			"complexity": { "noStaticOnlyClass": "off" },
+			"style": { "useImportType": "off" }
 		}
 	},
 	"formatter": { "enabled": true }
