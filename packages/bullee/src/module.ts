@@ -1,31 +1,21 @@
-import {
-	DynamicModule,
-	FactoryProvider,
-	Module,
-	ModuleMetadata,
-} from "@nestjs/common";
-import { EventEmitterModule } from "@nestjs/event-emitter";
+import { Module } from "@nestjs/common";
+import { BulleeConfig } from "./config";
 import { BulleeService } from "./service";
-import { BulleeServiceConfig } from "./service.config";
-
-type BulleeModuleOptions = Pick<ModuleMetadata, "imports"> &
-	Pick<FactoryProvider<BulleeServiceConfig>, "inject" | "useFactory">;
 
 @Module({
-	imports: [EventEmitterModule],
-	providers: [BulleeServiceConfig, BulleeService],
+	providers: [BulleeConfig, BulleeService],
 	exports: [BulleeService],
 })
 export class BulleeModule {
-	static forRootAsync({
-		imports,
-		inject,
-		useFactory,
-	}: BulleeModuleOptions): DynamicModule {
+	static forRoot(config: ConstructorParameters<typeof BulleeConfig>[0]) {
 		return {
 			module: BulleeModule,
-			imports,
-			providers: [{ provide: BulleeServiceConfig, inject, useFactory }],
+			providers: [
+				{
+					provide: BulleeConfig,
+					useFactory: () => new BulleeConfig(config),
+				},
+			],
 		};
 	}
 }

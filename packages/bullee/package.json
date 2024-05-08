@@ -18,10 +18,10 @@
 	},
 	"dependencies": {
 		"@joaofnds/throughput": "^0.3.0",
-		"@nestjs/bull": "^10.1.1",
 		"@nestjs/common": "^10.3.3",
 		"@nestjs/event-emitter": "^2.0.4",
-		"bull": "^4.12.2"
+		"bullmq": "^5.7.8",
+		"ioredis": "^5.4.1"
 	},
 	"devDependencies": {
 		"@nestjs/platform-express": "^10.3.3",

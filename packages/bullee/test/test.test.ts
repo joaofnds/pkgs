@@ -1,14 +1,9 @@
-import { BullModule } from "@nestjs/bull";
 import { INestApplication, Injectable } from "@nestjs/common";
 import { EventEmitter2, EventEmitterModule } from "@nestjs/event-emitter";
 import { Test } from "@nestjs/testing";
-import Bull from "bull";
-import {
-	BulleeModule,
-	BulleeService,
-	BulleeServiceConfig,
-	OnBackgroundEvent,
-} from "../src";
+import { Queue } from "bullmq";
+import { BulleeModule, BulleeService, OnBackgroundEvent } from "../src";
+import { BulleTesting } from "../src/testing";
 
 describe(BulleeModule.name, () => {
 	const testEventName = "test.event";
@@ -17,18 +12,15 @@ describe(BulleeModule.name, () => {
 	let emitter: TestEmitter;
 	let listenerOne: TestListener;
 	let listenerTwo: TestListener;
-	let queue: Bull.Queue;
+	let queue: Queue;
+	let testing: BulleTesting;
 
 	beforeAll(async () => {
 		const module = await Test.createTestingModule({
 			imports: [
-				BullModule.forRoot({}),
 				EventEmitterModule.forRoot({ wildcard: true }),
-				BulleeModule.forRootAsync({
-					useFactory: () =>
-						BulleeServiceConfig.withDefaults({
-							redis: { host: "localhost", port: 6380 },
-						}),
+				BulleeModule.forRoot({
+					redisOptions: { host: "localhost", port: 6380 },
 				}),
 			],
 			providers: [TestEmitter, TestListenerOne, TestListenerTwo],
@@ -42,15 +34,16 @@ describe(BulleeModule.name, () => {
 		emitter = app.get(TestEmitter);
 		listenerOne = app.get(TestListenerOne);
 		listenerTwo = app.get(TestListenerTwo);
-		queue = app.get(BulleeService).getQueue(testEventName);
+		const service = app.get(BulleeService);
+		testing = new BulleTesting(service);
+		queue = service.getQueue(testEventName);
 	});
 
 	beforeEach(async () => {
 		listenerOne.clear();
 		listenerTwo.clear();
-		await queue.pause();
-		await queue.obliterate({ force: true });
-		await queue.pause();
+		await testing.cleanAllQueues();
+		await testing.pauseAllQueues();
 	});
 
 	afterAll(async () => {
@@ -62,13 +55,13 @@ describe(BulleeModule.name, () => {
 		await emitter.emit({ bar: "baz" });
 		await emitter.emit({ baz: "qux" });
 
-		expect(await queue.getPausedCount()).toBeGreaterThan(0);
+		expect(await queue.getJobs("paused")).not.toHaveLength(0);
 		expect(listenerOne.receivedEvents.length).toBe(0);
 		expect(listenerTwo.receivedEvents.length).toBe(0);
 
-		await drainQueue(queue);
+		await testing.drainQueue(queue);
 
-		expect(await queue.getPausedCount()).toBe(0);
+		expect(await queue.getJobs("paused")).toHaveLength(0);
 		expect(listenerOne.receivedEvents.length).toBeGreaterThan(0);
 		expect(listenerTwo.receivedEvents.length).toBeGreaterThan(0);
 	});
@@ -83,7 +76,7 @@ describe(BulleeModule.name, () => {
 		expect(listenerOne.receivedEvents).toHaveLength(0);
 		expect(listenerTwo.receivedEvents).toHaveLength(0);
 
-		await drainQueue(queue);
+		await testing.drainQueue(queue);
 
 		expect(listenerOne.receivedEvents).toEqual([
 			{ foo: "bar" },
@@ -112,7 +105,7 @@ describe(BulleeModule.name, () => {
 			expect(listenerOne.receivedEvents).toHaveLength(0);
 			expect(listenerTwo.receivedEvents).toHaveLength(0);
 
-			await drainQueue(queue);
+			await testing.drainQueue(queue);
 
 			expect(listenerOne.receivedEvents).toEqual([
 				{ foo: "bar" },
@@ -154,7 +147,7 @@ describe(BulleeModule.name, () => {
 			expect(listenerOne.receivedEvents).toHaveLength(0);
 			expect(listenerTwo.receivedEvents).toHaveLength(0);
 
-			await drainQueue(queue);
+			await testing.drainQueue(queue);
 
 			expect(listenerOne.receivedEvents).toEqual([
 				{ foo: "bar" },
@@ -183,14 +176,6 @@ describe(BulleeModule.name, () => {
 			);
 		});
 	});
-
-	async function drainQueue(queue: Bull.Queue) {
-		await queue.resume();
-		while (
-			(await queue.getJobCountByTypes(["active", "delayed", "waiting"])) > 0
-		) {}
-		await queue.pause();
-	}
 
 	@Injectable()
 	class TestEmitter {

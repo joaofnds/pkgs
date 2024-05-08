@@ -1,4 +1,5 @@
-export type BulleeEvent = {
-	event: string;
-	payload: unknown;
+import { JobsOptions } from "bullmq";
+
+export type OnBackgroundEventOptions = {
+	job?: JobsOptions;
 };
