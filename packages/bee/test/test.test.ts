@@ -2,10 +2,10 @@ import { INestApplication, Injectable } from "@nestjs/common";
 import { EventEmitter2, EventEmitterModule } from "@nestjs/event-emitter";
 import { Test } from "@nestjs/testing";
 import { Queue } from "bullmq";
-import { BulleeModule, BulleeService, OnBackgroundEvent } from "../src";
+import { BeeModule, BeeService, OnBackgroundEvent } from "../src";
 import { BulleTesting } from "../src/testing";
 
-describe(BulleeModule.name, () => {
+describe(BeeModule.name, () => {
 	const testEventName = "test.event";
 
 	let app: INestApplication;
@@ -19,7 +19,7 @@ describe(BulleeModule.name, () => {
 		const module = await Test.createTestingModule({
 			imports: [
 				EventEmitterModule.forRoot({ wildcard: true }),
-				BulleeModule.forRoot({
+				BeeModule.forRoot({
 					redisOptions: { host: "localhost", port: 6380 },
 				}),
 			],
@@ -34,7 +34,7 @@ describe(BulleeModule.name, () => {
 		emitter = app.get(TestEmitter);
 		listenerOne = app.get(TestListenerOne);
 		listenerTwo = app.get(TestListenerTwo);
-		const service = app.get(BulleeService);
+		const service = app.get(BeeService);
 		testing = new BulleTesting(service);
 		queue = service.getQueue(testEventName);
 	});

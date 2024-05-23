@@ -2,7 +2,7 @@ import * as assert from "node:assert";
 import { OnEvent } from "@nestjs/event-emitter";
 import { OnBackgroundEventOptions } from "./types";
 
-export class BulleeListener {
+export class BeeListener {
 	static readonly eventPrefix = "background";
 	static readonly eventSeparator = ":";
 
@@ -24,10 +24,10 @@ export class BulleeListener {
 	) {
 		this.target = `${target.constructor.name}.${propertyKey.toString()}`;
 		this.targetedEvent = [
-			BulleeListener.eventPrefix,
+			BeeListener.eventPrefix,
 			this.event,
 			this.target,
-		].join(BulleeListener.eventSeparator);
+		].join(BeeListener.eventSeparator);
 		const paramTypes =
 			Reflect.getMetadata("design:paramtypes", target, propertyKey) || [];
 

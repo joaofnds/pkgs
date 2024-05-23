@@ -3,17 +3,17 @@ import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { Queue, Worker } from "bullmq";
 import { Listener } from "eventemitter2";
-import { BulleeConfig } from "./config";
+import { BeeConfig } from "./config";
 import { registry } from "./decorator";
 
 @Injectable()
-export class BulleeService implements OnModuleInit, OnModuleDestroy {
+export class BeeService implements OnModuleInit, OnModuleDestroy {
 	private readonly queues = new Map<string, Queue>();
 	private readonly workers = new Map<string, Worker>();
 	private readonly listeners: Listener[] = [];
 
 	constructor(
-		private readonly config: BulleeConfig,
+		private readonly config: BeeConfig,
 		private readonly eventEmitter: EventEmitter2,
 	) {}
 

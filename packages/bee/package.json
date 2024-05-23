@@ -1,6 +1,6 @@
 {
-	"name": "@joaofnds/bullee",
-	"version": "0.2.0",
+	"name": "@joaofnds/bee",
+	"version": "0.0.1",
 	"license": "MIT",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
@@ -8,7 +8,7 @@
 	"repository": {
 		"url": "https://github.com/joaofnds/pkgs.git",
 		"type": "git",
-		"directory": "packages/bullee"
+		"directory": "packages/bee"
 	},
 	"scripts": {
 		"pretest": "docker compose up -d",

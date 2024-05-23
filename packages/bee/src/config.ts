@@ -2,26 +2,26 @@ import { Injectable } from "@nestjs/common";
 import { JobsOptions, WorkerOptions } from "bullmq";
 import { RedisOptions } from "ioredis";
 
-type BulleeConfigConstructorParams = Partial<
+type BeeConfigConstructorParams = Partial<
 	Pick<
-		BulleeConfig,
+		BeeConfig,
 		| "enableListeners"
 		| "enableWorkers"
 		| "defaultJobOptions"
 		| "eventWorkerOptions"
 	>
 > &
-	Pick<BulleeConfig, "redisOptions">;
+	Pick<BeeConfig, "redisOptions">;
 
 @Injectable()
-export class BulleeConfig {
+export class BeeConfig {
 	readonly enableListeners: boolean;
 	readonly enableWorkers: boolean;
 	readonly defaultJobOptions: JobsOptions;
 	readonly eventWorkerOptions: Map<string, WorkerOptions>;
 	readonly redisOptions: RedisOptions;
 
-	constructor(config: BulleeConfigConstructorParams) {
+	constructor(config: BeeConfigConstructorParams) {
 		this.enableListeners = config.enableListeners ?? true;
 		this.enableWorkers = config.enableWorkers ?? true;
 		this.defaultJobOptions = {

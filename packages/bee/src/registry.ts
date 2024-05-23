@@ -1,9 +1,9 @@
-import { BulleeListener } from "./listener";
+import { BeeListener } from "./listener";
 
 export class EventRegistry {
-	readonly #events = new Map<string, BulleeListener[]>();
+	readonly #events = new Map<string, BeeListener[]>();
 
-	register(listener: BulleeListener) {
+	register(listener: BeeListener) {
 		const listeners = this.#events.get(listener.event);
 
 		if (listeners) {

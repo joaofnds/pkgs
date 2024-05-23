@@ -1,8 +1,8 @@
 import { Queue } from "bullmq";
-import { BulleeService } from "./service";
+import { BeeService } from "./service";
 
 export class BulleTesting {
-	constructor(private readonly service: BulleeService) {}
+	constructor(private readonly service: BeeService) {}
 
 	async cleanAllQueues() {
 		await Promise.all(
