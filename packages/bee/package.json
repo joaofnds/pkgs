@@ -1,6 +1,6 @@
 {
 	"name": "@joaofnds/bee",
-	"version": "0.0.1",
+	"version": "0.1.0",
 	"license": "MIT",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
@@ -17,7 +17,7 @@
 		"build": "rm -rf dist && tsc --build"
 	},
 	"dependencies": {
-		"@joaofnds/throughput": "^0.4.0",
+		"@joaofnds/throughput": "^0.5.0",
 		"@nestjs/common": "^10.3.3",
 		"@nestjs/event-emitter": "^2.0.4",
 		"bullmq": "^5.7.8",
