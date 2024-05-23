@@ -3,7 +3,7 @@ import { EventEmitter2, EventEmitterModule } from "@nestjs/event-emitter";
 import { Test } from "@nestjs/testing";
 import { Queue } from "bullmq";
 import { BeeModule, BeeService, OnBackgroundEvent } from "../src";
-import { BulleTesting } from "../src/testing";
+import { BeeTesting } from "../src/testing";
 
 describe(BeeModule.name, () => {
 	const testEventName = "test.event";
@@ -13,7 +13,7 @@ describe(BeeModule.name, () => {
 	let listenerOne: TestListener;
 	let listenerTwo: TestListener;
 	let queue: Queue;
-	let testing: BulleTesting;
+	let testing: BeeTesting;
 
 	beforeAll(async () => {
 		const module = await Test.createTestingModule({
@@ -35,7 +35,7 @@ describe(BeeModule.name, () => {
 		listenerOne = app.get(TestListenerOne);
 		listenerTwo = app.get(TestListenerTwo);
 		const service = app.get(BeeService);
-		testing = new BulleTesting(service);
+		testing = new BeeTesting(service);
 		queue = service.getQueue(testEventName);
 	});
 

@@ -24,6 +24,7 @@
 		"ioredis": "^5.4.1"
 	},
 	"devDependencies": {
+		"@nestjs/core": "^10.3.8",
 		"@nestjs/platform-express": "^10.3.8",
 		"@nestjs/testing": "^10.3.8",
 		"@types/jest": "^29.5.12",

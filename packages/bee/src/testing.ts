@@ -1,7 +1,7 @@
 import { Queue } from "bullmq";
 import { BeeService } from "./service";
 
-export class BulleTesting {
+export class BeeTesting {
 	constructor(private readonly service: BeeService) {}
 
 	async cleanAllQueues() {
