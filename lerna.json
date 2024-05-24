@@ -1,9 +1,9 @@
 {
-	"packages": ["packages/*"],
 	"version": "independent",
-	"npmClient": "npm",
+	"npmClient": "pnpm",
 	"command": {
 		"publish": {
+			"npmClient": "npm",
 			"registry": "https://npm.pkg.github.com",
 			"allowBranch": "main"
 		},

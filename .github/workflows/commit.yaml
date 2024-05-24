@@ -17,19 +17,22 @@ jobs:
       NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.1.1
       - uses: actions/setup-node@v3
         with:
-          node-version: 21
-          cache: npm
+          node-version: 22
+          cache: pnpm
           registry-url: https://npm.pkg.github.com
           scope: "@joaofnds"
       - name: setup git
         run: |
           git config --global user.name "${{ github.actor }}"
           git config --global user.email "${{ github.actor }}@users.noreply.github.com"
-      - run: npm ci
-      - run: npm run check
-      - run: npm run build
-      - run: npm run test
-      - run: npm run version
-      - run: npm run publish
+      - run: pnpm install
+      - run: pnpm run check
+      - run: pnpm run build
+      - run: pnpm run test
+      - run: pnpm run version
+      - run: pnpm run publish
