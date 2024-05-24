@@ -7,7 +7,7 @@
 		"check": "biome check .",
 		"lint": "biome check --apply-unsafe .",
 		"test": "lerna run test",
-		"version": "pnpm -r update && pnpm run lint"
+		"version": "pnpm run lint"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.7.3",
