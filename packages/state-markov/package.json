@@ -5,12 +5,7 @@
 	"description": "a simple state machine that transitions to a new state based on weights",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
-	"keywords": [
-		"state",
-		"machine",
-		"markov",
-		"chain"
-	],
+	"keywords": ["state", "machine", "markov", "chain"],
 	"author": "joaofnds <joaofnds@joaofnds.com>",
 	"repository": {
 		"url": "https://github.com/joaofnds/pkgs.git",
@@ -19,7 +14,8 @@
 	},
 	"scripts": {
 		"build": "rm -rf dist && tsc --build",
-		"test": "jest"
+		"test": "jest",
+		"version": "biome check --apply-unsafe ."
 	},
 	"devDependencies": {
 		"@jest/globals": "^29.7.0",

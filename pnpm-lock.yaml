@@ -18,8 +18,8 @@ importers:
   packages/bee:
     dependencies:
       '@joaofnds/throughput':
-        specifier: ^0.6.2
-        version: 0.6.2
+        specifier: ^0.6.3
+        version: 0.6.3
       '@nestjs/common':
         specifier: ^10.3.8
         version: 10.3.8(reflect-metadata@0.2.2)(rxjs@7.8.1)
@@ -76,8 +76,8 @@ importers:
   packages/streams-connector:
     dependencies:
       '@joaofnds/throughput':
-        specifier: ^0.6.2
-        version: 0.6.2
+        specifier: ^0.6.3
+        version: 0.6.3
       '@nestjs/common':
         specifier: ^10.3.8
         version: 10.3.8(reflect-metadata@0.2.2)(rxjs@7.8.1)
@@ -450,8 +450,8 @@ packages:
     resolution: {integrity: sha512-u3UPsIilWKOM3F9CXtrG8LEJmNxwoCQC/XVj4IKYXvvpx7QIi/Kg1LI5uDmDpKlac62NUtX7eLjRh+jVZcLOzw==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
 
-  '@joaofnds/throughput@0.6.2':
-    resolution: {integrity: sha512-qRvqpKQ4rjCOa4I24rLVX8Usgx+NqS2JjkPHDaKgUxiKgIREov1M3YSI8QaCjL7lxO6JmxALNLQ6S/DY9nwlgA==, tarball: https://npm.pkg.github.com/download/@joaofnds/throughput/0.6.2/1b2fe7ee3bf5d01aa488831dd3fbf26887b1309d}
+  '@joaofnds/throughput@0.6.3':
+    resolution: {integrity: sha512-3WdmtEJSyIgsGVUmc2NZeQ86bDnWq5fWhv2ravZ1cS9pizmAH5/JiMd3evetj3TuwMtRu7QI2dunjRlypj//rw==, tarball: https://npm.pkg.github.com/download/@joaofnds/throughput/0.6.3/98918af63d0771df763669a32184a406525b604e}
 
   '@jridgewell/gen-mapping@0.3.5':
     resolution: {integrity: sha512-IzL8ZoEDIBRWEzlCcRhOaCupYyN5gdIK+Q6fbFdPDg6HqX6jpkItn7DFIpW9LQzXG6Df9sA7+OKnq0qlz/GaQg==}
@@ -4104,7 +4104,7 @@ snapshots:
       '@types/yargs': 17.0.32
       chalk: 4.1.2
 
-  '@joaofnds/throughput@0.6.2': {}
+  '@joaofnds/throughput@0.6.3': {}
 
   '@jridgewell/gen-mapping@0.3.5':
     dependencies:
