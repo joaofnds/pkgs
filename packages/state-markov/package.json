@@ -1,11 +1,16 @@
 {
 	"name": "@joaofnds/state-markov",
-	"version": "1.5.1",
+	"version": "1.5.2",
 	"license": "MIT",
 	"description": "a simple state machine that transitions to a new state based on weights",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
-	"keywords": ["state", "machine", "markov", "chain"],
+	"keywords": [
+		"state",
+		"machine",
+		"markov",
+		"chain"
+	],
 	"author": "joaofnds <joaofnds@joaofnds.com>",
 	"repository": {
 		"url": "https://github.com/joaofnds/pkgs.git",
