@@ -1,6 +1,6 @@
 {
 	"name": "@joaofnds/bee",
-	"version": "0.2.4",
+	"version": "0.2.5",
 	"license": "MIT",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
@@ -19,7 +19,7 @@
 	"dependencies": {
 		"@nestjs/common": "^10.3.8",
 		"@nestjs/event-emitter": "^2.0.4",
-		"bullmq": "^5.7.11",
+		"bullmq": "^5.7.12",
 		"eventemitter2": "^6.4.9",
 		"ioredis": "^5.4.1"
 	},
