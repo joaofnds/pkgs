@@ -1,6 +1,6 @@
 {
 	"name": "@joaofnds/state-markov",
-	"version": "1.5.5",
+	"version": "1.5.6",
 	"license": "MIT",
 	"description": "a simple state machine that transitions to a new state based on weights",
 	"main": "dist/index.js",
