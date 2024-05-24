@@ -14,8 +14,7 @@
 	},
 	"scripts": {
 		"build": "rm -rf dist && tsc --build",
-		"test": "jest",
-		"version": "biome check --apply-unsafe ."
+		"test": "jest"
 	},
 	"devDependencies": {
 		"@jest/globals": "^29.7.0",

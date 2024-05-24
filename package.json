@@ -6,9 +6,8 @@
 		"build": "lerna run build",
 		"check": "biome check .",
 		"lint": "biome check --apply-unsafe .",
-		"publish": "lerna publish from-package --yes",
 		"test": "lerna run test",
-		"version": "lerna version --yes"
+		"version": "pnpm -r update && pnpm run lint"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.7.3",

@@ -34,5 +34,5 @@ jobs:
       - run: pnpm run check
       - run: pnpm run build
       - run: pnpm run test
-      - run: pnpm run version
-      - run: pnpm run publish
+      - run: pnpm exec lerna version --yes
+      - run: pnpm exec lerna publish from-package --yes
