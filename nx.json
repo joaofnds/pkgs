@@ -1,0 +1,42 @@
+{
+	"$schema": "./node_modules/nx/schemas/nx-schema.json",
+	"tui": {
+		"autoExit": true
+	},
+	"targetDefaults": {
+		"build": {
+			"dependsOn": ["^build"],
+			"outputs": ["{projectRoot}/dist"],
+			"cache": true
+		},
+		"test": {
+			"dependsOn": ["^build"],
+			"cache": true
+		},
+		"nx-release-publish": {
+			"dependsOn": ["^build"],
+			"options": {
+				"registry": "https://npm.pkg.github.com"
+			}
+		}
+	},
+	"plugins": [
+		{
+			"plugin": "@nx/jest/plugin",
+			"options": { "targetName": "test" }
+		}
+	],
+	"release": {
+		"projectsRelationship": "independent",
+		"changelog": {
+			"workspaceChangelog": false,
+			"projectChangelogs": false
+		},
+		"version": {
+			"conventionalCommits": true,
+			"currentVersionResolverMetadata": {
+				"registry": "https://npm.pkg.github.com"
+			}
+		}
+	}
+}

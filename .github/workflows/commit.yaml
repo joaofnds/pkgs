@@ -17,15 +17,21 @@ jobs:
       NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: tree:0
+
       - uses: pnpm/action-setup@v4
         with:
           version: 9.1.1
+
       - uses: actions/setup-node@v3
         with:
           node-version: 22
           cache: pnpm
           registry-url: https://npm.pkg.github.com
           scope: "@joaofnds"
+
       - name: setup git
         run: |
           git config --global user.name "${{ github.actor }}"
@@ -34,5 +40,5 @@ jobs:
       - run: pnpm run check
       - run: pnpm run build
       - run: pnpm run test
-      - run: pnpm exec lerna version --yes
-      - run: pnpm exec lerna publish from-package --yes
+      - run: pnpm run version
+      - run: pnpm run publish
