@@ -11,7 +11,8 @@
 		"directory": "packages/throughput"
 	},
 	"scripts": {
-		"build": "rm -rf dist && tsc --build",
+		"prebuild": "rm -rf dist",
+		"build": "tsc --build",
 		"test": "jest"
 	},
 	"devDependencies": {

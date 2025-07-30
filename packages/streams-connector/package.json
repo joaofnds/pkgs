@@ -11,10 +11,11 @@
 		"directory": "packages/streams-connector"
 	},
 	"scripts": {
+		"prebuild": "rm -rf dist",
+		"build": "tsc --build",
 		"pretest": "docker compose up -d",
 		"test": "jest",
-		"posttest": "docker compose down",
-		"build": "rm -rf dist && tsc --build"
+		"posttest": "docker compose down"
 	},
 	"devDependencies": {
 		"@nestjs/platform-express": "^10.3.8",
