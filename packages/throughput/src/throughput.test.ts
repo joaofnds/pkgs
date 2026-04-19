@@ -34,41 +34,38 @@ describe(Throughput, () => {
 
 			expectedTPS: 150,
 		},
-	])(
-		"%p",
-		async ({
+	])("%p", async ({
+		probeSize,
+		probeInterval,
+		tickInterval,
+		hitsPerTick,
+		ticks,
+		expectedTPS,
+	}) => {
+		let now = Date.now();
+		const nowfn = () => {
+			now += tickInterval;
+			return now;
+		};
+		const fakeTicker = new FakeTicker();
+		const throughput = new Throughput(
 			probeSize,
 			probeInterval,
-			tickInterval,
-			hitsPerTick,
-			ticks,
-			expectedTPS,
-		}) => {
-			let now = Date.now();
-			const nowfn = () => {
-				now += tickInterval;
-				return now;
-			};
-			const fakeTicker = new FakeTicker();
-			const throughput = new Throughput(
-				probeSize,
-				probeInterval,
-				fakeTicker,
-				nowfn,
-			);
-			throughput.start();
+			fakeTicker,
+			nowfn,
+		);
+		throughput.start();
 
-			for (let i = 0; i < ticks; i++) {
-				for (let j = 0; j < hitsPerTick; j++) {
-					throughput.hit();
-				}
-				fakeTicker.tick();
+		for (let i = 0; i < ticks; i++) {
+			for (let j = 0; j < hitsPerTick; j++) {
+				throughput.hit();
 			}
+			fakeTicker.tick();
+		}
 
-			expect(throughput.perSecond()).toBe(expectedTPS);
-			throughput.stop();
-		},
-	);
+		expect(throughput.perSecond()).toBe(expectedTPS);
+		throughput.stop();
+	});
 
 	it("reports other time periods", () => {
 		jest.useFakeTimers();

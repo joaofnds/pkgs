@@ -1,5 +1,4 @@
 import { describe } from "@jest/globals";
-import { assertSameLength, assertSumTo1 } from "./errors";
 import { State } from "./state";
 
 describe(State, () => {

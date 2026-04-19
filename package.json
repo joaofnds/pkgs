@@ -8,13 +8,13 @@
 	"scripts": {
 		"build": "nx run-many --target=build",
 		"check": "biome check .",
-		"lint": "biome check --apply-unsafe .",
+		"lint": "biome check --write --unsafe .",
 		"test": "nx run-many --target=test",
 		"version": "nx release --skip-publish",
 		"publish": "nx release publish"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^1.7.3",
+		"@biomejs/biome": "^2.4.12",
 		"@nx/jest": "21.3.9",
 		"jest": "^30.0.2",
 		"nx": "21.3.9"
