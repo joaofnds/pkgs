@@ -1,7 +1,10 @@
 {
 	"name": "root",
 	"private": true,
-	"packageManager": "pnpm@9.1.1",
+	"packageManager": "pnpm@10.33.0",
+	"engines": {
+		"node": ">=24"
+	},
 	"scripts": {
 		"build": "nx run-many --target=build",
 		"check": "biome check .",
@@ -15,5 +18,15 @@
 		"@nx/jest": "21.3.9",
 		"jest": "^30.0.2",
 		"nx": "21.3.9"
+	},
+	"pnpm": {
+		"onlyBuiltDependencies": [
+			"@biomejs/biome",
+			"@nestjs/core",
+			"@swc/core",
+			"msgpackr-extract",
+			"nx",
+			"unrs-resolver"
+		]
 	}
 }
