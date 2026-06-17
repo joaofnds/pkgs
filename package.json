@@ -14,10 +14,10 @@
 		"publish": "nx release publish"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.4.12",
-		"@nx/jest": "21.3.9",
-		"jest": "^30.0.2",
-		"nx": "21.3.9"
+		"@biomejs/biome": "^2.5.0",
+		"@nx/jest": "23.0.0",
+		"jest": "^30.4.2",
+		"nx": "23.0.0"
 	},
 	"pnpm": {
 		"onlyBuiltDependencies": [

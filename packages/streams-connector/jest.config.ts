@@ -1,6 +1,6 @@
-import { defaults as tsjPreset } from "ts-jest/presets";
+const { defaults: tsjPreset } = require("ts-jest/presets");
 
-export default {
+module.exports = {
 	collectCoverageFrom: ["src/**/*.ts"],
 	coverageDirectory: "coverage",
 	coveragePathIgnorePatterns: ["node_modules/", "dist/", "test/", ".test.ts"],

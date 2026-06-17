@@ -23,7 +23,9 @@
 	"plugins": [
 		{
 			"plugin": "@nx/jest/plugin",
-			"options": { "targetName": "test" }
+			"options": {
+				"targetName": "test"
+			}
 		}
 	],
 	"release": {

@@ -3,3 +3,4 @@ dist
 coverage
 .nx
 .vscode
+*.tsbuildinfo
