@@ -18,20 +18,20 @@
 		"posttest": "docker compose down"
 	},
 	"dependencies": {
-		"@nestjs/common": "^11.1.19",
-		"@nestjs/event-emitter": "^3.0.1",
-		"bullmq": "^5.74.1",
+		"@nestjs/common": "^11.1.27",
+		"@nestjs/event-emitter": "^3.1.0",
+		"bullmq": "^5.78.1",
 		"eventemitter2": "^6.4.9",
-		"ioredis": "^5.10.1"
+		"ioredis": "^5.11.1"
 	},
 	"devDependencies": {
-		"@nestjs/core": "^11.1.19",
-		"@nestjs/platform-express": "^11.1.19",
-		"@nestjs/testing": "^11.1.19",
-		"@swc/core": "^1.15.26",
+		"@nestjs/core": "^11.1.27",
+		"@nestjs/platform-express": "^11.1.27",
+		"@nestjs/testing": "^11.1.27",
+		"@swc/core": "^1.15.41",
 		"@swc/jest": "^0.2.39",
 		"@types/jest": "^30.0.0",
-		"jest": "^30.3.0",
+		"jest": "^30.4.2",
 		"typescript": "^6.0.3"
 	}
 }
