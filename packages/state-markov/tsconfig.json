@@ -4,6 +4,7 @@
 		"declaration": true,
 		"module": "commonjs",
 		"outDir": "dist",
+		"rootDir": "src",
 		"skipLibCheck": true,
 		"strict": true,
 		"target": "es2022"

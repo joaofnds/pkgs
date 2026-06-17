@@ -69,13 +69,13 @@ describe(StateMarkov, () => {
 		it("throws an error", () => {
 			expect(
 				() => new StateMarkov({ a: { a: 0.5, b: 0.6 }, b: { a: 1 } }),
-			).toThrowError("weight sum must be less than or equal to 1, got: 1.1");
+			).toThrow("weight sum must be less than or equal to 1, got: 1.1");
 		});
 	});
 
 	describe("when state is not defined", () => {
 		it("throws an error", () => {
-			expect(() => new StateMarkov({ a: { b: 1 } })).toThrowError(
+			expect(() => new StateMarkov({ a: { b: 1 } })).toThrow(
 				"undefined state 'b'",
 			);
 		});
