@@ -1,5 +1,3 @@
-const { defaults: tsjPreset } = require("ts-jest/presets");
-
 module.exports = {
 	collectCoverageFrom: ["src/**/*.ts"],
 	coverageDirectory: "coverage",
@@ -8,7 +6,7 @@ module.exports = {
 	rootDir: "./",
 	testEnvironment: "node",
 	testMatch: ["<rootDir>/**/*.test.ts"],
-	transform: tsjPreset.transform,
+	transform: { "\\.ts$": "@swc/jest" },
 	moduleNameMapper: {
 		"^src/(.*)": "<rootDir>/src/$1",
 		"^test/(.*)": "<rootDir>/test/$1",

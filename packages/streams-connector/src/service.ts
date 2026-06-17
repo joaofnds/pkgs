@@ -17,7 +17,7 @@ export class StreamsService
 	private readonly PAYLOAD_KEY = "payload";
 	private readonly logger = new Logger(StreamsService.name);
 	private readonly throughput = new Throughput(60, 1000);
-	private reclaimIntervalID?: NodeJS.Timeout;
+	private reclaimIntervalID?: ReturnType<typeof setInterval>;
 
 	constructor(
 		private readonly connection: RedisConnection,
