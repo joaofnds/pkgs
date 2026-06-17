@@ -13,14 +13,11 @@
 	"scripts": {
 		"prebuild": "rm -rf dist",
 		"build": "tsc --build",
-		"test": "jest"
+		"test": "vitest run"
 	},
 	"devDependencies": {
-		"@jest/globals": "^30.4.1",
-		"@swc/core": "^1.15.41",
-		"@swc/jest": "^0.2.39",
 		"@types/node": "^24.13.2",
-		"jest": "^30.4.2",
-		"typescript": "^6.0.3"
+		"typescript": "^6.0.3",
+		"vitest": "^4.1.9"
 	}
 }

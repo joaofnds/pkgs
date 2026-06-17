@@ -1,11 +1,11 @@
-import { describe, expect, it } from "@jest/globals";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SetIntervalTicker } from "./set-interval-ticker";
 
 describe(SetIntervalTicker, () => {
 	const interval = 10;
 
-	beforeEach(() => jest.useFakeTimers());
-	afterEach(() => jest.useRealTimers());
+	beforeEach(() => vi.useFakeTimers());
+	afterEach(() => vi.useRealTimers());
 
 	it("calls the function every X millis", async () => {
 		const ticker = new SetIntervalTicker();
@@ -13,7 +13,7 @@ describe(SetIntervalTicker, () => {
 		let calls = 0;
 		ticker.start(() => calls++, interval);
 
-		jest.advanceTimersByTime(interval * 10);
+		vi.advanceTimersByTime(interval * 10);
 
 		ticker.stop();
 
@@ -26,11 +26,11 @@ describe(SetIntervalTicker, () => {
 		let calls = 0;
 		ticker.start(() => calls++, interval);
 
-		jest.advanceTimersByTime(interval * 5);
+		vi.advanceTimersByTime(interval * 5);
 		ticker.stop();
 		expect(calls).toBe(5);
 
-		jest.advanceTimersByTime(interval * 10);
+		vi.advanceTimersByTime(interval * 10);
 		expect(calls).toBe(5);
 	});
 });

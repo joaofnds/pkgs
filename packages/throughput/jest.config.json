@@ -1,8 +1,0 @@
-{
-	"coveragePathIgnorePatterns": ["test"],
-	"detectOpenHandles": true,
-	"rootDir": "./",
-	"testEnvironment": "node",
-	"testMatch": ["<rootDir>/**/*.test.ts"],
-	"transform": { "\\.ts$": "@swc/jest" }
-}
