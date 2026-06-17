@@ -66,18 +66,12 @@ importers:
 
   packages/state-markov:
     devDependencies:
-      '@jest/globals':
-        specifier: ^30.4.1
-        version: 30.4.1
-      '@swc/jest':
-        specifier: ^0.2.39
-        version: 0.2.39(@swc/core@1.15.41)
-      jest:
-        specifier: ^30.4.2
-        version: 30.4.2(@types/node@24.13.2)(babel-plugin-macros@3.1.0)
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
+      vitest:
+        specifier: ^4.1.9
+        version: 4.1.9(@types/node@24.13.2)(vite@8.0.16(@types/node@24.13.2)(yaml@2.9.0))
 
   packages/streams-connector:
     dependencies:

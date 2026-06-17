@@ -20,12 +20,10 @@
 	"scripts": {
 		"prebuild": "rm -rf dist",
 		"build": "tsc --build",
-		"test": "jest"
+		"test": "vitest run"
 	},
 	"devDependencies": {
-		"@jest/globals": "^30.4.1",
-		"@swc/jest": "^0.2.39",
-		"jest": "^30.4.2",
-		"typescript": "^6.0.3"
+		"typescript": "^6.0.3",
+		"vitest": "^4.1.9"
 	}
 }
