@@ -17,7 +17,7 @@ describe(Dispatcher, () => {
 		probe = new FakeProbe();
 	});
 
-	function dispatcher(withProbe = probe): Dispatcher {
+	function dispatcher(withProbe: Probe = probe): Dispatcher {
 		return new Dispatcher(broker, codec, clock, withProbe);
 	}
 

@@ -27,7 +27,8 @@
 	"scripts": {
 		"prebuild": "rm -rf dist",
 		"build": "tsc --build",
-		"pretest": "docker compose up -d",
+		"typecheck": "tsc -p tsconfig.test.json",
+		"pretest": "pnpm run typecheck && docker compose up -d",
 		"test": "vitest run",
 		"posttest": "docker compose down",
 		"bench": "docker compose up -d && tsx benchmark/throughput.bench.ts; docker compose down"

@@ -158,7 +158,7 @@ describe("RedisStreamsBroker", () => {
 		await expect(
 			broker.consume(
 				subscription(topic, "h", { delivery: DeliveryMode.Broadcast }),
-				NOOP_HANDLER.handle,
+				async () => {},
 			),
 		).rejects.toBeInstanceOf(BroadcastNotSupportedError);
 	});
