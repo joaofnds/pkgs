@@ -122,6 +122,46 @@ describe("RedisStreamsBroker", () => {
 		expect(deliveries.messages[0].id).toBe(deliveries.messages[1].id);
 	});
 
+	it("reclaims the entire backlog when it exceeds the reclaim count", async () => {
+		// A reclaim pass that always restarts XAUTOCLAIM at cursor "0" only re-touches
+		// the first `count` pending entries, starving the tail of a large failing
+		// backlog. With `count` below the backlog size, every nacked message must still
+		// eventually be redelivered — proving the pass follows the cursor to "0-0".
+		const small = await BrokerHarness.start({
+			reclaim: {
+				interval: 50,
+				minIdleTime: 50,
+				count: 5,
+				throughputThreshold: 1_000_000,
+			},
+		});
+		try {
+			const topic = uniqueTopic();
+			const deliveries = new Deliveries();
+			deliveries.mode = "nack";
+			await small.broker.consume(subscription(topic, "h"), deliveries.deliver);
+
+			// > reclaim count (5): three windows (⌈12/5⌉), so the cursor must advance
+			// past the head twice — a head-only reclaim would never reach the tail.
+			const backlog = 12;
+			for (let i = 0; i < backlog; i++) {
+				await small.broker.publish(new Topic(topic), encode(`m${i}`));
+			}
+
+			const redeliveredIds = (): Set<string> =>
+				new Set(
+					deliveries.messages
+						.filter((m) => m.deliveryCount >= 2)
+						.map((m) => m.id),
+				);
+			await waitFor(() => redeliveredIds().size === backlog, {
+				message: "every nacked message in the backlog should be reclaimed",
+			});
+		} finally {
+			await small.stop();
+		}
+	});
+
 	it("does not deliver events published before a startFrom:new subscription", async () => {
 		const topic = uniqueTopic();
 		await broker.publish(new Topic(topic), encode("old"));

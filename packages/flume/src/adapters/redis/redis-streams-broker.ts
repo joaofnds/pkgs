@@ -310,21 +310,45 @@ export class RedisStreamsBroker implements Broker {
 
 		for (const state of this.consumers) {
 			if (state.stopped) continue;
+			await this.reclaimStream(reclaimClient, state);
+		}
+	}
+
+	// Sweep one consumer group's whole pending set. A single XAUTOCLAIM only scans
+	// COUNT entries from its start cursor and returns `nextId` to continue from;
+	// always starting at "0" re-touches the head of the PEL forever and starves the
+	// tail of a large failing backlog. Follow `nextId` until it wraps to "0-0" so
+	// the entire backlog is reached each pass. Per-entry minIdleTime and the
+	// pass-level throughput gate (shouldReclaim) still bound what a sweep claims, so
+	// it never steals more in-flight work than a single claim would. The cost is
+	// O(PEL) round-trips per pass on the dedicated reclaim connection; a hot stream
+	// can only grow its PEL by reading above throughputThreshold, which closes the
+	// gate, so a large non-idle PEL is not swept every interval.
+	private async reclaimStream(
+		reclaimClient: ReadClient,
+		state: ConsumerState,
+	): Promise<void> {
+		let cursor = "0";
+		do {
 			const claim = await reclaimClient.xAutoClaim(
 				state.stream,
 				state.group,
 				this.options.consumerName,
 				this.options.reclaim.minIdleTime,
-				"0",
+				cursor,
 				{ COUNT: this.options.reclaim.count },
 			);
 			for (const raw of claim.messages) {
+				if (state.stopped) return;
 				if (raw === null) continue;
 				const id = idOf(raw.id);
 				const count = await this.deliveryCount(state, id);
 				await this.deliver(state, id, bodyOf(raw.message), count);
 			}
-		}
+			// Under the read client's blob→Buffer mapping the cursor decodes to a
+			// Buffer (like message ids); normalize so the "0-0" terminator compares.
+			cursor = idOf(claim.nextId);
+		} while (cursor !== "0-0");
 	}
 
 	// Slow-but-healthy mitigation: only reclaim when this instance is underloaded.
