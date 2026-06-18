@@ -1,35 +1,9 @@
-import { Subscription, Topic } from "../domain";
-import { Broker, Bytes, DeliveredMessage, RunningConsumer } from "../ports";
-
-// A message recorded by `publish` — a dispatched envelope or a dead-letter copy.
-export class PublishedMessage {
-	constructor(
-		readonly topic: Topic,
-		readonly body: Bytes,
-	) {}
-}
-
-// A message handed to a consumer. Captures whether it was acked or nacked so a
-// test can assert the Worker's decision without reaching into the broker.
-export class FakeDeliveredMessage implements DeliveredMessage {
-	acked = false;
-	nacked = false;
-
-	constructor(
-		readonly topic: Topic,
-		readonly id: string,
-		readonly body: Bytes,
-		readonly deliveryCount: number,
-	) {}
-
-	async ack(): Promise<void> {
-		this.acked = true;
-	}
-
-	async nack(): Promise<void> {
-		this.nacked = true;
-	}
-}
+import { Subscription } from "../domain/subscription";
+import { Topic } from "../domain/topic";
+import { Bytes } from "../ports/codec";
+import { Broker, DeliveredMessage, RunningConsumer } from "../ports/consumer";
+import { FakeDeliveredMessage } from "./fake-delivered-message";
+import { PublishedMessage } from "./published-message";
 
 interface Registration {
 	sub: Subscription;

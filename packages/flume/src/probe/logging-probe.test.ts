@@ -1,8 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { DeliveryMode, RetryPolicy, Subscription, Topic } from "../domain";
-import { DeliveredMessage } from "../ports";
-import { RecordingHandler } from "../test-support";
-import { LoggingProbe, ProbeLogger } from "./logging-probe";
+import { DeliveryMode } from "../domain/delivery-mode";
+import { RetryPolicy } from "../domain/retry-policy";
+import { Subscription } from "../domain/subscription";
+import { Topic } from "../domain/topic";
+import { DeliveredMessage } from "../ports/consumer";
+import { RecordingHandler } from "../test-support/recording-handler";
+import { LoggingProbe } from "./logging-probe";
+import { ProbeLogger } from "./probe-logger";
 
 interface Line {
 	level: "info" | "error";

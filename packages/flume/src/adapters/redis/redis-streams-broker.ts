@@ -1,25 +1,31 @@
 import { Throughput } from "@joaofnds/throughput";
+import { DeadLetter } from "../../domain/dead-letter";
+import { DeliveryMode } from "../../domain/delivery-mode";
+import { StartFrom, Subscription } from "../../domain/subscription";
+import { Topic } from "../../domain/topic";
+import { Bytes } from "../../ports/codec";
 import {
-	DeadLetter,
-	DeliveryMode,
-	StartFrom,
-	Subscription,
-	Topic,
-} from "../../domain";
-import { Broker, Bytes, DeliveredMessage, RunningConsumer } from "../../ports";
+	Broker,
+	DeliveredMessage,
+	RunningConsumer,
+} from "../../ports/consumer";
+import { BrokerError } from "./broker-error";
+import { BrokerNotConnectedError } from "./broker-not-connected-error";
 import {
 	createReadClient,
 	createWriteClient,
 	ReadClient,
 	WriteClient,
 } from "./clients";
+import { ConsumerState } from "./consumer-state";
 import { RedisDeliveredMessage } from "./delivered-message";
-import { asBrokerError, BrokerError, isClientClosedError } from "./errors";
+import { asBrokerError, isClientClosedError } from "./errors";
 import {
 	RedisStreamsBrokerOptions,
 	ResolvedOptions,
 	resolveOptions,
 } from "./options";
+import { RedriveResult } from "./redrive-result";
 import { minStreamId } from "./stream-id";
 
 // The single stream field that carries the framed envelope bytes. The envelope
@@ -27,38 +33,6 @@ import { minStreamId } from "./stream-id";
 // the port, so the adapter stores it whole under one field rather than splitting
 // it across stream fields.
 const PAYLOAD_FIELD = "payload";
-
-export class BrokerNotConnectedError extends BrokerError {
-	constructor() {
-		super("broker is not connected; call connect() before use");
-		this.name = "BrokerNotConnectedError";
-	}
-}
-
-// Outcome of a dead-letter redrive pass.
-export interface RedriveResult {
-	// Original messages re-published to the live topic this pass.
-	readonly redriven: number;
-	// Entries skipped because their originalId was already redriven before.
-	readonly skipped: number;
-}
-
-// One running blocking-read loop, bound to a single subscription's consumer
-// group. Each subscription monopolizes its own read connection (a blocking
-// XREADGROUP holds the socket), so this is `subscriptions + 2` connections per
-// instance — the connection-cost ceiling called out in PRD §9.
-interface ConsumerState {
-	readonly topic: Topic;
-	readonly stream: string;
-	readonly group: string;
-	// Broadcast groups are per-instance and ephemeral: they heartbeat a TTL key and
-	// are reaped when the instance dies. Competing groups are shared and stable, so
-	// they neither heartbeat nor get reaped.
-	readonly broadcast: boolean;
-	readonly deliver: (msg: DeliveredMessage) => Promise<void>;
-	readonly readClient: ReadClient;
-	stopped: boolean;
-}
 
 // Redis Streams broker: implements both halves of the broker port (Publisher +
 // Consumer) over plain native Stream commands — XADD / XREADGROUP / XACK /

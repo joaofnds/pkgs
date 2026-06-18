@@ -1,5 +1,8 @@
-import { Topic } from "../domain";
-import { Clock, Codec, Probe, Publisher } from "../ports";
+import { Topic } from "../domain/topic";
+import { Clock } from "../ports/clock";
+import { Codec } from "../ports/codec";
+import { Probe } from "../ports/probe";
+import { Publisher } from "../ports/publisher";
 import { Envelope } from "./envelope";
 import { GuardedProbe } from "./guarded-probe";
 

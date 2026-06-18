@@ -1,5 +1,5 @@
-// A Topic is the named channel an event flows on (e.g. "user.created").
-// Value object: a single immutable name with identity by value.
+// The named channel an event flows on (e.g. "user.created"). Value object,
+// equality by name.
 export class Topic {
 	constructor(readonly name: string) {}
 

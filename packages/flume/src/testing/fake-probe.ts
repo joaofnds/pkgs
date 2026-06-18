@@ -1,5 +1,7 @@
-import { Subscription, Topic } from "../domain";
-import { DeliveredMessage, Probe } from "../ports";
+import { Subscription } from "../domain/subscription";
+import { Topic } from "../domain/topic";
+import { DeliveredMessage } from "../ports/consumer";
+import { Probe } from "../ports/probe";
 
 export interface ProcessedCall {
 	sub: Subscription;

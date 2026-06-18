@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { RedisStreamsBroker } from "../src/adapters/redis";
 import {
 	DeadLetter,
 	Flume,
@@ -7,8 +6,9 @@ import {
 	RetryPolicy,
 	SystemClock,
 } from "../src/index";
-import { RecordingHandler } from "../src/test-support";
-import { FakeProbe } from "../src/testing/index";
+import { RedisStreamsBroker } from "../src/redis";
+import { RecordingHandler } from "../src/test-support/recording-handler";
+import { FakeProbe } from "../src/testing";
 import { BrokerHarness } from "./support/harness";
 import { uniqueTopic, waitFor } from "./support/wait";
 

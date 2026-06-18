@@ -6,8 +6,10 @@ import {
 	Subscription,
 	Topic,
 } from "../index";
-import { RecordingHandler, ThrowingProbe } from "../test-support";
-import { FakeBroker, FakeProbe } from "../testing/index";
+import { RecordingHandler } from "../test-support/recording-handler";
+import { ThrowingProbe } from "../test-support/throwing-probe";
+import { FakeBroker } from "../testing/fake-broker";
+import { FakeProbe } from "../testing/fake-probe";
 
 describe(GuardedProbe, () => {
 	const topic = new Topic("user.created");

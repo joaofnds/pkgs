@@ -11,8 +11,8 @@
 
 import { Throughput } from "@joaofnds/throughput";
 import { Worker as BullWorker, Queue } from "bullmq";
-import { RedisStreamsBroker } from "../src/adapters/redis";
 import { DeliveryMode, RetryPolicy, Subscription, Topic } from "../src/index";
+import { RedisStreamsBroker } from "../src/redis";
 
 const REDIS_URL = "redis://localhost:6381";
 const REDIS = { host: "localhost", port: 6381 };

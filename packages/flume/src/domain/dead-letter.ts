@@ -1,25 +1,15 @@
+import { TruncatedDeadLetterError } from "./truncated-dead-letter-error";
+
 const ID_LENGTH_BYTES = 4;
 
-export class TruncatedDeadLetterError extends Error {
-	constructor(length: number) {
-		super(`dead-letter frame is ${length} bytes, too short for its header`);
-		this.name = "TruncatedDeadLetterError";
-	}
-}
-
-// A handler's message parked after exhausting its retry policy. The core frames
-// the ORIGINAL broker message id alongside the original envelope bytes — the id
-// only exists at consume time (it is broker-assigned), so it must be captured
-// here, not at dispatch. A redrive utility dedups/re-publishes idempotently on
-// `originalId`. Carrying it in the framed body keeps the generic Publisher port
-// unchanged: the adapter writes this body as-is, and MAY additionally surface
-// `originalId` as a broker field by parsing it — no core change required.
-//
-// It lives in `domain/` (not `application/`, where Envelope sits) because it
-// crosses BOTH ways: the Worker frames it, and the Redis adapter's redrive
-// utility parses it — and the adapter may import only `domain/`/`ports/` (PRD
-// §13). It uses `Uint8Array` directly rather than the `Bytes` ports alias so the
-// domain layer depends on nothing outward.
+// A handler's message parked after exhausting its retry policy. Frames the
+// ORIGINAL broker message id (only known at consume time) alongside the original
+// envelope bytes so a redrive utility can dedup/re-publish idempotently on
+// `originalId` — carried in the body, so the generic Publisher port stays
+// unchanged. Lives in domain/ (not application/ with Envelope) because it crosses
+// both ways: the Worker frames it and the Redis adapter's redrive parses it, and
+// the adapter may import only domain/ports (PRD §13). Uses Uint8Array directly so
+// domain/ depends on nothing outward.
 //
 // Layout: [idLength u32 BE][originalId utf8][body bytes...]
 export class DeadLetter {

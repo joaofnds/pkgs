@@ -1,9 +1,31 @@
 // Core entry — framework-agnostic, zero runtime dependencies. Never imports a
-// broker client. Exports the core layers (domain/application/ports/codec/clock/
-// probe). Adapters (e.g. Redis) ship behind their own entry points.
-export * from "./application";
-export * from "./clock";
-export * from "./codec";
-export * from "./domain";
-export * from "./ports";
-export * from "./probe";
+// broker client; adapters (e.g. Redis) ship behind their own entry points.
+export * from "./application/dispatcher";
+export * from "./application/duplicate-subscription-error";
+export * from "./application/envelope";
+export * from "./application/envelope-error";
+export * from "./application/flume";
+export * from "./application/guarded-probe";
+export * from "./application/truncated-envelope-error";
+export * from "./application/unsupported-envelope-version-error";
+export * from "./application/worker";
+export * from "./application/worker-already-started-error";
+export * from "./clock/system-clock";
+export * from "./codec/json-codec";
+export * from "./domain/dead-letter";
+export * from "./domain/delivery-mode";
+export * from "./domain/event";
+export * from "./domain/event-handler";
+export * from "./domain/invalid-retry-policy-error";
+export * from "./domain/retry-policy";
+export * from "./domain/subscription";
+export * from "./domain/topic";
+export * from "./domain/truncated-dead-letter-error";
+export * from "./ports/clock";
+export * from "./ports/codec";
+export * from "./ports/consumer";
+export * from "./ports/probe";
+export * from "./ports/publisher";
+export * from "./probe/console-probe-logger";
+export * from "./probe/logging-probe";
+export * from "./probe/probe-logger";

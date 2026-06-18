@@ -1,33 +1,15 @@
-import { DeadLetter, Event, Subscription, Topic } from "../domain";
-import {
-	Codec,
-	Consumer,
-	DeliveredMessage,
-	Probe,
-	Publisher,
-	RunningConsumer,
-} from "../ports";
+import { DeadLetter } from "../domain/dead-letter";
+import { Event } from "../domain/event";
+import { Subscription } from "../domain/subscription";
+import { Topic } from "../domain/topic";
+import { Codec } from "../ports/codec";
+import { Consumer, DeliveredMessage, RunningConsumer } from "../ports/consumer";
+import { Probe } from "../ports/probe";
+import { Publisher } from "../ports/publisher";
+import { DuplicateSubscriptionError } from "./duplicate-subscription-error";
 import { Envelope } from "./envelope";
 import { GuardedProbe } from "./guarded-probe";
-
-export class DuplicateSubscriptionError extends Error {
-	constructor(
-		readonly topic: string,
-		readonly name: string,
-	) {
-		super(
-			`a subscription for topic "${topic}" with name "${name}" is already registered`,
-		);
-		this.name = "DuplicateSubscriptionError";
-	}
-}
-
-export class WorkerAlreadyStartedError extends Error {
-	constructor() {
-		super("worker already started; register all subscriptions before start()");
-		this.name = "WorkerAlreadyStartedError";
-	}
-}
+import { WorkerAlreadyStartedError } from "./worker-already-started-error";
 
 // Consumer side. Owns the retry/dead-letter POLICY; the broker owns redelivery
 // mechanics. The dead-letter decision can only fire on a redelivery (where the

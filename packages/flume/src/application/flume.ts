@@ -1,12 +1,12 @@
-import {
-	DeliveryMode,
-	EventHandler,
-	RetryPolicy,
-	StartFrom,
-	Subscription,
-	Topic,
-} from "../domain";
-import { Broker, Clock, Codec, Probe } from "../ports";
+import { DeliveryMode } from "../domain/delivery-mode";
+import { EventHandler } from "../domain/event-handler";
+import { RetryPolicy } from "../domain/retry-policy";
+import { StartFrom, Subscription } from "../domain/subscription";
+import { Topic } from "../domain/topic";
+import { Clock } from "../ports/clock";
+import { Codec } from "../ports/codec";
+import { Broker } from "../ports/consumer";
+import { Probe } from "../ports/probe";
 import { Dispatcher } from "./dispatcher";
 import { Worker } from "./worker";
 

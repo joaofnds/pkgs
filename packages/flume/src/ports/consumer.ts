@@ -1,4 +1,5 @@
-import { Subscription, Topic } from "../domain";
+import { Subscription } from "../domain/subscription";
+import { Topic } from "../domain/topic";
 import { Bytes } from "./codec";
 import { Publisher } from "./publisher";
 

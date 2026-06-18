@@ -1,4 +1,4 @@
-import { Bytes, Codec } from "../ports";
+import { Bytes, Codec } from "../ports/codec";
 
 // Core default codec. Encodes values as UTF-8 JSON bytes. For arbitrary binary
 // payloads (msgpack, protobuf) supply a binary Codec instead — the envelope wire

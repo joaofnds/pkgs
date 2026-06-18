@@ -9,8 +9,10 @@ import {
 	Subscription,
 	Topic,
 } from "../index";
-import { RecordingHandler } from "../test-support";
-import { FakeBroker, FakeClock, FakeProbe } from "../testing/index";
+import { RecordingHandler } from "../test-support/recording-handler";
+import { FakeBroker } from "../testing/fake-broker";
+import { FakeClock } from "../testing/fake-clock";
+import { FakeProbe } from "../testing/fake-probe";
 
 describe(Flume, () => {
 	let broker: FakeBroker;

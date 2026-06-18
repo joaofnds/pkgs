@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { DeadLetter } from "../domain";
+import { DeadLetter } from "../domain/dead-letter";
 import {
 	type Bytes,
 	type Codec,
@@ -16,13 +16,13 @@ import {
 	Worker,
 	WorkerAlreadyStartedError,
 } from "../index";
-import {
-	OrderProbe,
-	RawBytesCodec,
-	RecordingHandler,
-	ThrowingProbe,
-} from "../test-support";
-import { FakeBroker, FakeClock, FakeProbe } from "../testing/index";
+import { OrderProbe } from "../test-support/order-probe";
+import { RawBytesCodec } from "../test-support/raw-bytes-codec";
+import { RecordingHandler } from "../test-support/recording-handler";
+import { ThrowingProbe } from "../test-support/throwing-probe";
+import { FakeBroker } from "../testing/fake-broker";
+import { FakeClock } from "../testing/fake-clock";
+import { FakeProbe } from "../testing/fake-probe";
 
 const DEAD_LETTER = "user.created:dead:send-email";
 

@@ -1,4 +1,4 @@
-import { Topic } from "../domain";
+import { Topic } from "../domain/topic";
 import { Bytes } from "./codec";
 
 // Producer side. The API tier needs only this. `body` is the framed envelope

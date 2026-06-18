@@ -1,31 +1,12 @@
-import { Bytes } from "../ports";
-
-const VERSION = 1;
-// 1 byte version + 8 bytes dispatchedAt (float64 ms since epoch).
-const HEADER_BYTES = 9;
-
-export class EnvelopeError extends Error {}
-
-export class TruncatedEnvelopeError extends EnvelopeError {
-	constructor(length: number) {
-		super(`envelope is ${length} bytes, need at least ${HEADER_BYTES}`);
-		this.name = "TruncatedEnvelopeError";
-	}
-}
-
-export class UnsupportedEnvelopeVersionError extends EnvelopeError {
-	constructor(readonly version: number) {
-		super(`unsupported envelope version ${version}, expected ${VERSION}`);
-		this.name = "UnsupportedEnvelopeVersionError";
-	}
-}
+import { Bytes } from "../ports/codec";
+import { HEADER_BYTES, VERSION } from "./envelope-format";
+import { TruncatedEnvelopeError } from "./truncated-envelope-error";
+import { UnsupportedEnvelopeVersionError } from "./unsupported-envelope-version-error";
 
 // The versioned wire envelope: { v, dispatchedAt, payload }. Core-owned framing,
 // distinct from the swappable payload Codec — the version field keeps future
 // additions (schema id, trace context) non-breaking. Binary framing (not JSON)
 // so an arbitrary-byte payload survives the round-trip verbatim.
-//
-// Layout: [version: u8][dispatchedAt: f64 BE ms][payload: bytes...]
 export class Envelope {
 	readonly version: number;
 	readonly dispatchedAt: Date;

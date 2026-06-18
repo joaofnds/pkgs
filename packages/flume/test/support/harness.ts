@@ -1,9 +1,9 @@
 import { createClient, RESP_TYPES } from "redis";
-import { RedisStreamsBroker } from "../../src/adapters/redis";
 import {
+	RedisStreamsBroker,
 	RedisStreamsBrokerOptions,
 	ResolvedOptions,
-} from "../../src/adapters/redis/options";
+} from "../../src/redis";
 
 export const REDIS_URL = "redis://localhost:6381";
 

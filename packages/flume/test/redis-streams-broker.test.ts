@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { RedisStreamsBroker } from "../src/adapters/redis";
 import {
 	DeliveredMessage,
 	DeliveryMode,
@@ -9,6 +8,7 @@ import {
 	Subscription,
 	Topic,
 } from "../src/index";
+import { RedisStreamsBroker } from "../src/redis";
 import { BrokerHarness } from "./support/harness";
 import { uniqueTopic, waitFor } from "./support/wait";
 

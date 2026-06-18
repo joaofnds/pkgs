@@ -1,5 +1,6 @@
-import { Topic } from "../../domain";
-import { Bytes, DeliveredMessage } from "../../ports";
+import { Topic } from "../../domain/topic";
+import { Bytes } from "../../ports/codec";
+import { DeliveredMessage } from "../../ports/consumer";
 
 // One Redis Stream entry handed to the Worker. `ack` is XACK (remove from the
 // pending entries list); `nack` is deliberately a NO-OP — leaving the entry in the

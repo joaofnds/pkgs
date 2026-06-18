@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { Dispatcher, Envelope, JsonCodec, type Probe, Topic } from "../index";
-import { ThrowingProbe } from "../test-support";
-import { FakeBroker, FakeClock, FakeProbe } from "../testing/index";
+import { ThrowingProbe } from "../test-support/throwing-probe";
+import { FakeBroker } from "../testing/fake-broker";
+import { FakeClock } from "../testing/fake-clock";
+import { FakeProbe } from "../testing/fake-probe";
 
 describe(Dispatcher, () => {
 	const topic = new Topic("user.created");

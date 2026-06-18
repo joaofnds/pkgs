@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DeliveryMode, RetryPolicy, Subscription, Topic } from "../index";
-import { RecordingHandler } from "../test-support";
+import { RecordingHandler } from "../test-support/recording-handler";
 
 describe(Subscription, () => {
 	function subscription(topicName: string, name: string): Subscription {

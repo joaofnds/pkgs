@@ -1,4 +1,5 @@
-import { Subscription, Topic } from "../domain";
+import { Subscription } from "../domain/subscription";
+import { Topic } from "../domain/topic";
 import { DeliveredMessage } from "./consumer";
 
 // Observability port — real metrics/logs in prod, no-op/recording fake in tests.
