@@ -9,6 +9,7 @@ import {
 	DeliveredMessage,
 	RunningConsumer,
 } from "../../ports/consumer";
+import { AckBatch } from "./ack-batch";
 import { BrokerError } from "./broker-error";
 import { BrokerNotConnectedError } from "./broker-not-connected-error";
 import {
@@ -128,6 +129,7 @@ export class RedisStreamsBroker implements Broker {
 			deliver,
 			readClient,
 			stopped: false,
+			ackBatch: new AckBatch(),
 		};
 		this.consumers.add(state);
 		this.readLoop(state);
@@ -211,8 +213,8 @@ export class RedisStreamsBroker implements Broker {
 				);
 				if (!response) continue;
 				for (const stream of response) {
-					// Concurrent dispatch so each handler's XACK pipelines into one round-trip;
-					// reverting to a sequential `await` per message silently ~7x-regresses throughput.
+					// Concurrent dispatch so the batch's acks coalesce into one multi-id XACK
+					// (scheduleAck); a sequential `await` per message un-coalesces them and regresses throughput.
 					await Promise.all(
 						stream.messages.map((raw) => {
 							this.throughput.hit();
@@ -420,16 +422,36 @@ export class RedisStreamsBroker implements Broker {
 			id,
 			body,
 			deliveryCount,
-			() => this.ack(state, id),
+			() => this.scheduleAck(state, id),
 		);
 		await state.deliver(message);
 	}
 
-	private async ack(state: ConsumerState, id: string): Promise<void> {
+	// Two foot-guns in this ack-coalescing pair: (1) the flush is a microtask, not a
+	// Promise.all-completion callback — handlers await their own ack inside the read
+	// loop's Promise.all, so flushing after it deadlocks; the microtask fires while they
+	// are parked. (2) flushAcks swaps in a fresh batch BEFORE awaiting, so acks landing
+	// mid-XACK coalesce into the next batch, not a list already in flight.
+	private scheduleAck(state: ConsumerState, id: string): Promise<void> {
+		const batch = state.ackBatch;
+		if (batch.isEmpty()) {
+			queueMicrotask(() => this.flushAcks(state));
+		}
+		return batch.add(id);
+	}
+
+	private async flushAcks(state: ConsumerState): Promise<void> {
+		const batch = state.ackBatch;
+		state.ackBatch = new AckBatch();
 		try {
-			await this.requireWriteClient().xAck(state.stream, state.group, id);
+			await this.requireWriteClient().xAck(
+				state.stream,
+				state.group,
+				batch.ids,
+			);
+			batch.resolve();
 		} catch (error) {
-			throw asBrokerError(error);
+			batch.reject(asBrokerError(error));
 		}
 	}
 

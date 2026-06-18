@@ -1,5 +1,6 @@
 import { Topic } from "../../domain/topic";
 import { DeliveredMessage } from "../../ports/consumer";
+import { AckBatch } from "./ack-batch";
 import { ReadClient } from "./clients";
 
 export interface ConsumerState {
@@ -10,4 +11,5 @@ export interface ConsumerState {
 	readonly deliver: (msg: DeliveredMessage) => Promise<void>;
 	readonly readClient: ReadClient;
 	stopped: boolean;
+	ackBatch: AckBatch;
 }
