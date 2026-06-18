@@ -30,7 +30,6 @@
 		"@nestjs/testing": "^11.1.27",
 		"@swc/core": "^1.15.41",
 		"typescript": "^6.0.3",
-		"unplugin-swc": "^1.5.9",
-		"vitest": "^4.1.9"
+		"unplugin-swc": "^1.5.9"
 	}
 }
