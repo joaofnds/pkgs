@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { DeadLetter } from "../domain";
 import {
 	type Bytes,
 	type Codec,
-	DeadLetter,
 	DeliveryMode,
 	Dispatcher,
 	DuplicateSubscriptionError,

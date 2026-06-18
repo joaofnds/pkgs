@@ -1,3 +1,4 @@
+export * from "./dead-letter";
 export * from "./delivery-mode";
 export * from "./event";
 export * from "./event-handler";

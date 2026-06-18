@@ -1,5 +1,11 @@
 import { Throughput } from "@joaofnds/throughput";
-import { DeliveryMode, StartFrom, Subscription, Topic } from "../../domain";
+import {
+	DeadLetter,
+	DeliveryMode,
+	StartFrom,
+	Subscription,
+	Topic,
+} from "../../domain";
 import { Broker, Bytes, DeliveredMessage, RunningConsumer } from "../../ports";
 import {
 	createReadClient,
@@ -14,6 +20,7 @@ import {
 	ResolvedOptions,
 	resolveOptions,
 } from "./options";
+import { minStreamId } from "./stream-id";
 
 // The single stream field that carries the framed envelope bytes. The envelope
 // (version + dispatchedAt + payload) is already a self-contained binary frame at
@@ -21,20 +28,19 @@ import {
 // it across stream fields.
 const PAYLOAD_FIELD = "payload";
 
-export class BroadcastNotSupportedError extends BrokerError {
-	constructor(readonly name: string) {
-		super(
-			`broadcast delivery is not supported yet (subscription "${name}"); use Competing`,
-		);
-		this.name = "BroadcastNotSupportedError";
-	}
-}
-
 export class BrokerNotConnectedError extends BrokerError {
 	constructor() {
 		super("broker is not connected; call connect() before use");
 		this.name = "BrokerNotConnectedError";
 	}
+}
+
+// Outcome of a dead-letter redrive pass.
+export interface RedriveResult {
+	// Original messages re-published to the live topic this pass.
+	readonly redriven: number;
+	// Entries skipped because their originalId was already redriven before.
+	readonly skipped: number;
 }
 
 // One running blocking-read loop, bound to a single subscription's consumer
@@ -45,6 +51,10 @@ interface ConsumerState {
 	readonly topic: Topic;
 	readonly stream: string;
 	readonly group: string;
+	// Broadcast groups are per-instance and ephemeral: they heartbeat a TTL key and
+	// are reaped when the instance dies. Competing groups are shared and stable, so
+	// they neither heartbeat nor get reaped.
+	readonly broadcast: boolean;
 	readonly deliver: (msg: DeliveredMessage) => Promise<void>;
 	readonly readClient: ReadClient;
 	stopped: boolean;
@@ -52,16 +62,18 @@ interface ConsumerState {
 
 // Redis Streams broker: implements both halves of the broker port (Publisher +
 // Consumer) over plain native Stream commands — XADD / XREADGROUP / XACK /
-// XAUTOCLAIM / XPENDING / XGROUP. No server-side scripting (no EVAL/Lua, no
-// MULTI): the motivating constraint (PRD §1). Three kinds of client mirror
-// streams-connector: a dedicated blocking-read client per subscription, one
-// shared reclaim client, one shared write client.
+// XAUTOCLAIM / XPENDING / XGROUP / XINFO / XTRIM. No server-side scripting (no
+// EVAL/Lua, no MULTI): the motivating constraint (PRD §1). Three kinds of client
+// mirror streams-connector: a dedicated blocking-read client per subscription,
+// one shared reclaim client, one shared write/control client.
 export class RedisStreamsBroker implements Broker {
 	private readonly options: ResolvedOptions;
 	private readonly throughput: Throughput;
 	private writeClient?: WriteClient;
 	private reclaimClient?: ReadClient;
 	private reclaimTimer?: ReturnType<typeof setInterval>;
+	private heartbeatTimer?: ReturnType<typeof setInterval>;
+	private reaperTimer?: ReturnType<typeof setInterval>;
 	private readonly consumers = new Set<ConsumerState>();
 
 	constructor(
@@ -72,7 +84,7 @@ export class RedisStreamsBroker implements Broker {
 		this.throughput = throughput;
 	}
 
-	// Connect the shared clients and start the reclaim loop. Outside the broker
+	// Connect the shared clients and start the periodic loops. Outside the broker
 	// port (the port is just publish/consume) so the owning process controls the
 	// lifecycle: connect() before worker.start(), close() on shutdown.
 	async connect(): Promise<void> {
@@ -89,14 +101,35 @@ export class RedisStreamsBroker implements Broker {
 				// client mid-shutdown) is retried on the next interval.
 			});
 		}, this.options.reclaim.interval);
+		this.heartbeatTimer = setInterval(() => {
+			this.heartbeat().catch(() => {
+				// Self-healing like reclaim: a missed heartbeat is refreshed next tick,
+				// and the TTL is sized well above the interval to tolerate a miss.
+			});
+		}, this.options.broadcast.heartbeatInterval);
+		this.reaperTimer = setInterval(() => {
+			this.reap().catch(() => {
+				// Self-healing: a failed reap pass is retried on the next interval.
+			});
+		}, this.options.reaper.interval);
 	}
 
 	async close(): Promise<void> {
-		if (this.reclaimTimer !== undefined) {
-			clearInterval(this.reclaimTimer);
-			this.reclaimTimer = undefined;
+		for (const timer of [
+			this.reclaimTimer,
+			this.heartbeatTimer,
+			this.reaperTimer,
+		]) {
+			if (timer !== undefined) clearInterval(timer);
 		}
+		this.reclaimTimer = undefined;
+		this.heartbeatTimer = undefined;
+		this.reaperTimer = undefined;
 		this.throughput.stop();
+		// Graceful broadcast teardown: destroy this instance's per-instance groups so
+		// they don't linger as orphans until the reaper's TTL expires. A crash skips
+		// this — the reaper is the backstop (PRD §8).
+		await this.cleanupBroadcastGroups();
 		for (const state of this.consumers) {
 			state.stopped = true;
 			state.readClient.destroy();
@@ -112,7 +145,8 @@ export class RedisStreamsBroker implements Broker {
 
 	async publish(topic: Topic, body: Bytes): Promise<void> {
 		// No MAXLEN on a live topic stream: trimming by age/count would drop entries
-		// a slow consumer group has not read yet, breaking at-least-once (PRD §8).
+		// a slow consumer group has not read yet, breaking at-least-once. Bounded
+		// growth is handled by the opt-in MINID reaper instead (PRD §8).
 		try {
 			await this.requireWriteClient().xAdd(topic.name, "*", {
 				[PAYLOAD_FIELD]: Buffer.from(body),
@@ -126,13 +160,17 @@ export class RedisStreamsBroker implements Broker {
 		sub: Subscription,
 		deliver: (msg: DeliveredMessage) => Promise<void>,
 	): Promise<RunningConsumer> {
-		if (sub.delivery === DeliveryMode.Broadcast) {
-			throw new BroadcastNotSupportedError(sub.name);
-		}
-
 		const stream = sub.topic.name;
+		const broadcast = sub.delivery === DeliveryMode.Broadcast;
 		const group = this.groupFor(sub);
 		await this.ensureGroup(stream, group, sub.startFrom);
+
+		if (broadcast) {
+			// Register the group and prove liveness BEFORE the first read, so a reaper
+			// pass running between now and the first heartbeat tick can't mistake this
+			// brand-new group for an orphan and destroy it.
+			await this.registerBroadcastGroup(stream, group);
+		}
 
 		const readClient = createReadClient(this.options.redis);
 		await readClient.connect();
@@ -141,6 +179,7 @@ export class RedisStreamsBroker implements Broker {
 			topic: sub.topic,
 			stream,
 			group,
+			broadcast,
 			deliver,
 			readClient,
 			stopped: false,
@@ -152,6 +191,7 @@ export class RedisStreamsBroker implements Broker {
 			stop: async () => {
 				state.stopped = true;
 				this.consumers.delete(state);
+				if (broadcast) await this.destroyBroadcastGroup(stream, group);
 				// destroy(), not close(): a blocking XREADGROUP holds the socket until
 				// its timeout; destroy force-closes so the loop unblocks now.
 				state.readClient.destroy();
@@ -159,11 +199,58 @@ export class RedisStreamsBroker implements Broker {
 		};
 	}
 
-	// The consumer group is `flume:{sub.name}`. sub.name already carries the
-	// namespace (the facade folded it in), so the adapter only prefixes `flume:`
-	// and stays namespace-agnostic (PRD §8).
+	// Re-publish dead-lettered messages back onto their live topic. Reads the
+	// per-handler dead stream `{topic}:dead:{name}`, parses each DeadLetter frame,
+	// and publishes the ORIGINAL envelope bytes to `topic` — so the Worker consumes
+	// them fresh (deliveryCount 1). Idempotent on `originalId`: an id already
+	// redriven is skipped, so re-running after a partial pass never double-drives.
+	// `name` is the full subscription name (namespace-folded, as registered), the
+	// same value the dead stream key was built from. Publish happens before the
+	// idempotency mark, so a crash between the two re-drives next run (at-least-once,
+	// idempotent handlers) rather than silently dropping the message.
+	async redriveDeadLetters(opts: {
+		topic: Topic;
+		name: string;
+	}): Promise<RedriveResult> {
+		const deadStream = `${opts.topic.name}:dead:${opts.name}`;
+		const redrivenKey = `flume:redriven:${deadStream}`;
+		const readClient = this.requireReclaimClient();
+		const writeClient = this.requireWriteClient();
+
+		let redriven = 0;
+		let skipped = 0;
+		try {
+			const entries = await readClient.xRange(deadStream, "-", "+");
+			for (const entry of entries) {
+				const deadLetter = DeadLetter.parse(bodyOf(entry.message));
+				const seen = await writeClient.sIsMember(
+					redrivenKey,
+					deadLetter.originalId,
+				);
+				if (seen) {
+					skipped += 1;
+					continue;
+				}
+				await this.publish(opts.topic, deadLetter.body);
+				await writeClient.sAdd(redrivenKey, deadLetter.originalId);
+				redriven += 1;
+			}
+		} catch (error) {
+			throw asBrokerError(error);
+		}
+		return { redriven, skipped };
+	}
+
+	// The consumer group: `flume:{sub.name}` for competing (shared → load splits),
+	// `flume:{sub.name}:{instanceId}` for broadcast (per-instance → every instance
+	// sees every message). sub.name already carries the namespace (the facade folded
+	// it in), so the adapter only prefixes `flume:` and stays namespace-agnostic
+	// (PRD §8).
 	private groupFor(sub: Subscription): string {
-		return `flume:${sub.name}`;
+		const base = `flume:${sub.name}`;
+		return sub.delivery === DeliveryMode.Broadcast
+			? `${base}:${this.options.instanceId}`
+			: base;
 	}
 
 	private async ensureGroup(
@@ -247,6 +334,156 @@ export class RedisStreamsBroker implements Broker {
 		return (
 			this.throughput.perSecond() < this.options.reclaim.throughputThreshold
 		);
+	}
+
+	// Refresh the liveness key for every broadcast group this instance owns. Redis
+	// expires the key on its own (server-side TTL), so the reaper's death test needs
+	// no client clock and is immune to cross-instance clock skew.
+	private async heartbeat(): Promise<void> {
+		const writeClient = this.writeClient;
+		if (writeClient === undefined) return;
+		// Refresh concurrently: a slow SET on one group must not delay the others in
+		// the same tick and let their TTL lapse under the reaper.
+		const refreshes: Promise<unknown>[] = [];
+		for (const state of this.consumers) {
+			if (!state.broadcast || state.stopped) continue;
+			refreshes.push(
+				writeClient.set(this.heartbeatKey(state.group), "1", {
+					expiration: {
+						type: "PX",
+						value: this.options.broadcast.heartbeatTtl,
+					},
+				}),
+			);
+		}
+		await Promise.all(refreshes);
+	}
+
+	private async registerBroadcastGroup(
+		stream: string,
+		group: string,
+	): Promise<void> {
+		const writeClient = this.requireWriteClient();
+		// Liveness key BEFORE registry membership: the reaper reaps a registry member
+		// whose heartbeat is missing, so a group must never be visible in the registry
+		// without its heartbeat already present — otherwise a reaper racing between the
+		// two writes would destroy a brand-new group.
+		await writeClient.set(this.heartbeatKey(group), "1", {
+			expiration: { type: "PX", value: this.options.broadcast.heartbeatTtl },
+		});
+		await writeClient.sAdd(this.registryKey(stream), group);
+	}
+
+	// Periodic reaper (PRD §8): for every stream this instance consumes, destroy
+	// expired broadcast groups, then — only when trimming is enabled — XTRIM the
+	// stream by the min low-water-mark across the LIVE groups. Dead broadcast groups
+	// are reaped FIRST so a frozen orphan can't pin the trim point.
+	private async reap(): Promise<void> {
+		const writeClient = this.writeClient;
+		if (writeClient === undefined) return;
+		const streams = new Set<string>();
+		for (const state of this.consumers) streams.add(state.stream);
+		for (const stream of streams) {
+			const dead = await this.destroyExpiredBroadcastGroups(
+				writeClient,
+				stream,
+			);
+			if (this.options.reaper.trim) {
+				await this.trimStream(writeClient, stream, dead);
+			}
+		}
+	}
+
+	// Destroy broadcast groups whose instance stopped heartbeating (TTL key gone),
+	// returning the destroyed group names so the trim step excludes them. Competing
+	// groups never appear in the registry, so they are never touched. XGROUP DESTROY
+	// and SREM are both idempotent, so racing instances reaping the same orphan is
+	// harmless — no Lua/transaction needed.
+	private async destroyExpiredBroadcastGroups(
+		writeClient: WriteClient,
+		stream: string,
+	): Promise<Set<string>> {
+		const dead = new Set<string>();
+		const registered = await writeClient.sMembers(this.registryKey(stream));
+		for (const group of registered) {
+			const alive = await writeClient.exists(this.heartbeatKey(group));
+			if (alive > 0) continue;
+			await writeClient.xGroupDestroy(stream, group);
+			await writeClient.sRem(this.registryKey(stream), group);
+			dead.add(group);
+		}
+		return dead;
+	}
+
+	// Trim a live topic stream to the minimum low-water-mark across its live groups
+	// (PRD §8). The per-group low-water-mark is its oldest UNACKED pending id when it
+	// has pending entries, else its last-delivered id — never above what a group
+	// still needs, which keeps at-least-once intact even for a slow handler whose
+	// entry is delivered-but-not-yet-acked. Excludes the just-reaped dead groups so a
+	// frozen orphan can't freeze trimming.
+	private async trimStream(
+		writeClient: WriteClient,
+		stream: string,
+		dead: Set<string>,
+	): Promise<void> {
+		const groups = await writeClient.xInfoGroups(stream);
+		const live = groups.filter((group) => !dead.has(String(group.name)));
+		if (live.length === 0) return;
+
+		const floors: string[] = [];
+		for (const group of live) {
+			floors.push(
+				await this.groupLowWaterMark(
+					writeClient,
+					stream,
+					String(group.name),
+					String(group["last-delivered-id"]),
+				),
+			);
+		}
+		await writeClient.xTrim(stream, "MINID", minStreamId(floors));
+	}
+
+	private async groupLowWaterMark(
+		writeClient: WriteClient,
+		stream: string,
+		group: string,
+		lastDeliveredId: string,
+	): Promise<string> {
+		const pending = await writeClient.xPending(stream, group);
+		if (pending.pending > 0 && pending.firstId !== null) {
+			return String(pending.firstId);
+		}
+		return lastDeliveredId;
+	}
+
+	private async cleanupBroadcastGroups(): Promise<void> {
+		if (this.writeClient === undefined) return;
+		for (const state of this.consumers) {
+			if (!state.broadcast) continue;
+			await this.destroyBroadcastGroup(state.stream, state.group).catch(() => {
+				// Best-effort on shutdown: the reaper destroys it later via TTL if this
+				// fails, so a teardown error must not block close().
+			});
+		}
+	}
+
+	private async destroyBroadcastGroup(
+		stream: string,
+		group: string,
+	): Promise<void> {
+		const writeClient = this.requireWriteClient();
+		await writeClient.xGroupDestroy(stream, group);
+		await writeClient.sRem(this.registryKey(stream), group);
+		await writeClient.del(this.heartbeatKey(group));
+	}
+
+	private registryKey(stream: string): string {
+		return `flume:bcast:${stream}`;
+	}
+
+	private heartbeatKey(group: string): string {
+		return `flume:hb:${group}`;
 	}
 
 	private async deliveryCount(

@@ -1,4 +1,4 @@
-import { Event, Subscription, Topic } from "../domain";
+import { DeadLetter, Event, Subscription, Topic } from "../domain";
 import {
 	Codec,
 	Consumer,
@@ -7,7 +7,6 @@ import {
 	Publisher,
 	RunningConsumer,
 } from "../ports";
-import { DeadLetter } from "./dead-letter";
 import { Envelope } from "./envelope";
 import { GuardedProbe } from "./guarded-probe";
 

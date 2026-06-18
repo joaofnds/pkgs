@@ -72,6 +72,40 @@ export class BrokerHarness {
 		return this.maint.xLen(stream);
 	}
 
+	// Consumer-group names on a stream (the maint client maps blobs to Buffer, so
+	// names come back as Buffer — normalize to string).
+	async groupNames(stream: string): Promise<string[]> {
+		const groups = await this.maint.xInfoGroups(stream);
+		return groups.map((group) => String(group.name));
+	}
+
+	async keyExists(key: string): Promise<boolean> {
+		return (await this.maint.exists(key)) > 0;
+	}
+
+	// Seed a frozen orphan broadcast group: a per-instance group registered in the
+	// broadcast registry but WITHOUT a liveness key — i.e. what a dead instance
+	// leaves behind. The reaper must destroy it (and stop it pinning the MINID).
+	async seedOrphanBroadcastGroup(
+		stream: string,
+		group: string,
+		startId = "0",
+	): Promise<void> {
+		try {
+			await this.maint.xGroupCreate(stream, group, startId, { MKSTREAM: true });
+		} catch (error) {
+			if (!(error instanceof Error) || !error.message.includes("BUSYGROUP")) {
+				throw error;
+			}
+		}
+		await this.maint.sAdd(`flume:bcast:${stream}`, group);
+	}
+
+	async registryMembers(stream: string): Promise<string[]> {
+		const members = await this.maint.sMembers(`flume:bcast:${stream}`);
+		return members.map((member) => String(member));
+	}
+
 	// Raw entries on a stream (e.g. the dead-letter stream) for assertions. The
 	// payload field decodes to a Buffer (binary-clean).
 	async entries(

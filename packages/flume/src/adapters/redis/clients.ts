@@ -33,8 +33,14 @@ export function createReadClient(options: RedisClientOptions): ReadClient {
 	});
 }
 
-// Write client: only XADD/XACK/XGROUP/XPENDING, which carry no binary payload in
-// their replies, so it needs no blob→Buffer mapping.
+// Write + control-plane client: XADD/XACK/XGROUP, plus the M3 ops commands
+// (XINFO GROUPS / XPENDING / XTRIM / XGROUP DESTROY and the broadcast-liveness
+// SET/SADD/SMEMBERS/SREM/EXISTS). It carries no binary *payload* in its replies,
+// so it needs no blob→Buffer mapping — and pinning RESP 2 keeps replies as plain
+// strings/numbers. That matters for XINFO GROUPS especially: node-redis v6
+// defaults to RESP3, but its XINFO GROUPS RESP3 transform is `undefined`, so the
+// command only works under RESP 2. Stream ids (last-delivered-id, XPENDING ids)
+// come back as the `<ms>-<seq>` strings the reaper compares.
 export function createWriteClient(options: RedisClientOptions) {
-	return createClient(options);
+	return createClient({ ...options, RESP: 2 });
 }

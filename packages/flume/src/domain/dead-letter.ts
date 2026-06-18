@@ -1,5 +1,3 @@
-import { Bytes } from "../ports";
-
 const ID_LENGTH_BYTES = 4;
 
 export class TruncatedDeadLetterError extends Error {
@@ -17,17 +15,23 @@ export class TruncatedDeadLetterError extends Error {
 // unchanged: the adapter writes this body as-is, and MAY additionally surface
 // `originalId` as a broker field by parsing it — no core change required.
 //
+// It lives in `domain/` (not `application/`, where Envelope sits) because it
+// crosses BOTH ways: the Worker frames it, and the Redis adapter's redrive
+// utility parses it — and the adapter may import only `domain/`/`ports/` (PRD
+// §13). It uses `Uint8Array` directly rather than the `Bytes` ports alias so the
+// domain layer depends on nothing outward.
+//
 // Layout: [idLength u32 BE][originalId utf8][body bytes...]
 export class DeadLetter {
 	readonly originalId: string;
-	readonly body: Bytes;
+	readonly body: Uint8Array;
 
-	constructor(props: { originalId: string; body: Bytes }) {
+	constructor(props: { originalId: string; body: Uint8Array }) {
 		this.originalId = props.originalId;
 		this.body = props.body;
 	}
 
-	toBytes(): Bytes {
+	toBytes(): Uint8Array {
 		const id = new TextEncoder().encode(this.originalId);
 		const frame = new Uint8Array(
 			ID_LENGTH_BYTES + id.length + this.body.length,
@@ -38,7 +42,7 @@ export class DeadLetter {
 		return frame;
 	}
 
-	static parse(bytes: Bytes): DeadLetter {
+	static parse(bytes: Uint8Array): DeadLetter {
 		if (bytes.length < ID_LENGTH_BYTES) {
 			throw new TruncatedDeadLetterError(bytes.length);
 		}

@@ -1,8 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-	BroadcastNotSupportedError,
-	RedisStreamsBroker,
-} from "../src/adapters/redis";
+import { RedisStreamsBroker } from "../src/adapters/redis";
 import {
 	DeliveredMessage,
 	DeliveryMode,
@@ -151,16 +148,6 @@ describe("RedisStreamsBroker", () => {
 		);
 
 		await waitFor(() => deliveries.bodies().includes("old"));
-	});
-
-	it("rejects broadcast delivery as not yet supported", async () => {
-		const topic = uniqueTopic();
-		await expect(
-			broker.consume(
-				subscription(topic, "h", { delivery: DeliveryMode.Broadcast }),
-				async () => {},
-			),
-		).rejects.toBeInstanceOf(BroadcastNotSupportedError);
 	});
 
 	it("does not reclaim while local throughput is above the gate threshold", async () => {
