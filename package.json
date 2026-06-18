@@ -16,15 +16,5 @@
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.0",
 		"nx": "23.0.0"
-	},
-	"pnpm": {
-		"onlyBuiltDependencies": [
-			"@biomejs/biome",
-			"@nestjs/core",
-			"@swc/core",
-			"msgpackr-extract",
-			"nx",
-			"unrs-resolver"
-		]
 	}
 }
