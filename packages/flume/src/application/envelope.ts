@@ -3,10 +3,6 @@ import { HEADER_BYTES, VERSION } from "./envelope-format";
 import { TruncatedEnvelopeError } from "./truncated-envelope-error";
 import { UnsupportedEnvelopeVersionError } from "./unsupported-envelope-version-error";
 
-// The versioned wire envelope: { v, dispatchedAt, payload }. Core-owned framing,
-// distinct from the swappable payload Codec — the version field keeps future
-// additions (schema id, trace context) non-breaking. Binary framing (not JSON)
-// so an arbitrary-byte payload survives the round-trip verbatim.
 export class Envelope {
 	readonly version: number;
 	readonly dispatchedAt: Date;

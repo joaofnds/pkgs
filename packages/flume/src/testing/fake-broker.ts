@@ -11,13 +11,6 @@ interface Registration {
 	stopped: boolean;
 }
 
-// In-memory Broker for fast core tests. It deliberately does NOT auto-deliver on
-// publish: a test accumulates published messages, then drives delivery itself —
-// mirroring the real broker, where dispatch and consumption are separate. Fresh
-// delivery (count 1) and redelivery (count N) are distinct driver calls, because
-// Redis surfaces them on distinct occasions and the count is only authoritative
-// on reclaim. Building "count accurate on every delivery" into the fake would
-// green-light semantics the Redis adapter cannot honor.
 export class FakeBroker implements Broker {
 	readonly published: PublishedMessage[] = [];
 	private readonly registrations = new Map<string, Registration>();
@@ -39,12 +32,10 @@ export class FakeBroker implements Broker {
 		};
 	}
 
-	// Published messages whose topic matches — e.g. to assert dead-letter routing.
 	publishedTo(topicName: string): PublishedMessage[] {
 		return this.published.filter((m) => m.topic.name === topicName);
 	}
 
-	// Drive a fresh delivery (count 1) to the consumer registered for `sub`.
 	async deliverFresh(
 		sub: Subscription,
 		message: { id: string; body: Bytes; topic?: Topic },
@@ -52,8 +43,6 @@ export class FakeBroker implements Broker {
 		return this.deliver(sub, { ...message, deliveryCount: 1 });
 	}
 
-	// Drive a redelivery (the reclaim path) with an explicit count > 1. This is
-	// the only occasion the broker supplies an authoritative count.
 	async redeliver(
 		sub: Subscription,
 		message: { id: string; body: Bytes; count: number; topic?: Topic },

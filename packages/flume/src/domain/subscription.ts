@@ -5,9 +5,6 @@ import { Topic } from "./topic";
 
 export type StartFrom = "new" | "beginning";
 
-// `name` is the durable identity → consumer group → must be stable across deploys
-// AND unique per topic. The Flume facade folds its namespace into this name, so
-// the full durable identity {namespace}:{registeredName} lives here as one value.
 export class Subscription {
 	readonly topic: Topic;
 	readonly name: string;
@@ -32,9 +29,6 @@ export class Subscription {
 		this.startFrom = props.startFrom ?? "new";
 	}
 
-	// Must collide exactly when two subs share {topic, name} (which would share one
-	// consumer group and split work, breaking per-handler isolation) and only then.
-	// JSON encoding keeps the join unambiguous for any name content.
 	key(): string {
 		return JSON.stringify([this.topic.name, this.name]);
 	}

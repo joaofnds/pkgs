@@ -12,13 +12,6 @@ import { FakeProbe } from "../src/testing";
 import { BrokerHarness } from "./support/harness";
 import { uniqueTopic, waitFor } from "./support/wait";
 
-// End-to-end over real Redis: the adapter driving the real Worker/Dispatcher. This
-// is the point of M2 — that the adapter satisfies the M1 contract (fresh = attempt
-// 1, reclaim supplies the count, ack=XACK, nack leaves it pending, dead-letter is
-// "XADD then XACK original") with zero core changes. The bee acceptance scenarios
-// (process once, retry+dead-letter at the boundary, per-handler isolation) are the
-// behavior bar (PRD §12).
-
 const NAMESPACE = "svc";
 
 describe("Flume over Redis Streams", () => {
@@ -88,8 +81,6 @@ describe("Flume over Redis Streams", () => {
 			async () => (await harness.streamLength(deadStream(topic, "flaky"))) > 0,
 			{ message: "exhausted handler should dead-letter" },
 		);
-		// Fresh delivery is attempt 1 (invoke); the reclaim that pushes the count to
-		// 2 dead-letters without invoking — exactly one invocation.
 		expect(handler.events).toHaveLength(1);
 	});
 
@@ -117,7 +108,6 @@ describe("Flume over Redis Streams", () => {
 		expect(dead).toHaveLength(1);
 		expect(DeadLetter.parse(dead[0].payload).originalId).toBe(originalId);
 
-		// The original is acked on dead-letter and never invoked a third time.
 		await waitFor(
 			async () =>
 				(await harness.pendingCount(topic, group("flaky"), originalId)) === 0,
@@ -149,7 +139,6 @@ describe("Flume over Redis Streams", () => {
 		);
 
 		expect(healthy.events[0].payload).toEqual({ shared: true });
-		// The healthy handler processed and acked — it never dead-letters.
 		expect(await harness.streamLength(deadStream(topic, "healthy"))).toBe(0);
 	});
 });

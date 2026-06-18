@@ -11,12 +11,6 @@ import {
 import { BrokerHarness } from "./support/harness";
 import { uniqueTopic, waitFor } from "./support/wait";
 
-// Broadcast (PRD §8/§9): each instance gets its OWN per-instance consumer group
-// `flume:{sub.name}:{instanceId}`, so every instance sees every event. Per-instance
-// groups are ephemeral — a dead instance orphans its group, which leaks and (worse)
-// pins the MINID reaper — so broadcast ships with a group reaper: heartbeat/TTL per
-// instance, XGROUP DESTROY for expired groups, MINID excluding dead groups.
-
 const NOOP: EventHandler = { async handle() {} };
 
 const FAST_BROADCAST = { heartbeatInterval: 25, heartbeatTtl: 100 };
@@ -137,7 +131,6 @@ describe("broadcast delivery + group reaper", () => {
 			new Deliveries().deliver,
 		);
 
-		// Several reaper intervals pass; the heartbeat keeps the group alive.
 		await new Promise((resolve) => setTimeout(resolve, 200));
 		expect(await live.groupNames(topic)).toContain("flume:cache:inst-a");
 		expect(await live.keyExists("flume:hb:flume:cache:inst-a")).toBe(true);
@@ -165,9 +158,6 @@ describe("broadcast delivery + group reaper", () => {
 
 	it("trims a live stream by MINID only over groups that survive the reaper", async () => {
 		const topic = uniqueTopic();
-		// trim on; a competing worker reads+acks everything so its low-water-mark
-		// advances to the last id. A frozen orphan broadcast group at id 0 would pin
-		// MINID at 0-0 and freeze trimming — until the reaper excludes it.
 		const harness = await startInstance({
 			reaper: { interval: 40, trim: true },
 		});
@@ -187,9 +177,6 @@ describe("broadcast delivery + group reaper", () => {
 			message: "the worker should read and ack every message",
 		});
 
-		// The worker acked all `count`, so its low-water-mark is the last id; with the
-		// orphan excluded, MINID trims to exactly that id (inclusive), leaving 1 entry.
-		// Were the orphan NOT excluded, its frozen 0-0 would pin MINID and trim nothing.
 		await waitFor(async () => (await harness.streamLength(topic)) === 1, {
 			message:
 				"stream should trim to the worker's low-water-mark once the orphan is reaped",

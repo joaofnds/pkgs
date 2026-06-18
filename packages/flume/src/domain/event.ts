@@ -1,7 +1,5 @@
 import { Topic } from "./topic";
 
-// A domain occurrence handed to a handler. `payload` is codec-decoded;
-// `id`/`deliveryCount` come from the broker; `dispatchedAt` from the envelope.
 export class Event<T = unknown> {
 	readonly topic: Topic;
 	readonly payload: T;

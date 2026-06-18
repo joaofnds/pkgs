@@ -14,8 +14,6 @@ export interface FailedCall {
 	error: unknown;
 }
 
-// Recording probe. Captures every call so tests can assert observability fired,
-// in order, without a mocking framework.
 export class FakeProbe implements Probe {
 	readonly dispatchedTopics: Topic[] = [];
 	readonly processedCalls: ProcessedCall[] = [];

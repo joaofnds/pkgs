@@ -1,7 +1,6 @@
 import { Event } from "../domain/event";
 import { EventHandler } from "../domain/event-handler";
 
-// Records the events it receives and can be toggled to fail, like bee's listener.
 export class RecordingHandler implements EventHandler {
 	readonly events: Event[] = [];
 	shouldFail = false;

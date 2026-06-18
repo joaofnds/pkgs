@@ -18,11 +18,6 @@ export interface SubscribeOptions {
 	startFrom?: StartFrom;
 }
 
-// The event-emitter-like surface over Dispatcher + Worker. `emit` is async (it
-// crosses the broker) and `on` requires a stable `name` (the durable identity).
-// The `namespace` (your service identity) is folded into every subscription name
-// so two services subscribing the same handler name to the same topic stay
-// isolated. The underlying Dispatcher/Worker stay reachable for advanced wiring.
 export class Flume {
 	readonly namespace: string;
 	private readonly dispatcher: Dispatcher;

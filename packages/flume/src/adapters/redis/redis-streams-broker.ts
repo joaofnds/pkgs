@@ -28,18 +28,8 @@ import {
 import { RedriveResult } from "./redrive-result";
 import { minStreamId } from "./stream-id";
 
-// The single stream field that carries the framed envelope bytes. The envelope
-// (version + dispatchedAt + payload) is already a self-contained binary frame at
-// the port, so the adapter stores it whole under one field rather than splitting
-// it across stream fields.
 const PAYLOAD_FIELD = "payload";
 
-// Redis Streams broker: implements both halves of the broker port (Publisher +
-// Consumer) over plain native Stream commands — XADD / XREADGROUP / XACK /
-// XAUTOCLAIM / XPENDING / XGROUP / XINFO / XTRIM. No server-side scripting (no
-// EVAL/Lua, no MULTI): the motivating constraint (PRD §1). Three kinds of client
-// mirror streams-connector: a dedicated blocking-read client per subscription,
-// one shared reclaim client, one shared write/control client.
 export class RedisStreamsBroker implements Broker {
 	private readonly options: ResolvedOptions;
 	private readonly throughput: Throughput;
@@ -58,9 +48,6 @@ export class RedisStreamsBroker implements Broker {
 		this.throughput = throughput;
 	}
 
-	// Connect the shared clients and start the periodic loops. Outside the broker
-	// port (the port is just publish/consume) so the owning process controls the
-	// lifecycle: connect() before worker.start(), close() on shutdown.
 	async connect(): Promise<void> {
 		this.writeClient = createWriteClient(this.options.redis);
 		this.reclaimClient = createReadClient(this.options.redis);
@@ -70,21 +57,13 @@ export class RedisStreamsBroker implements Broker {
 		]);
 		this.throughput.start();
 		this.reclaimTimer = setInterval(() => {
-			this.reclaim().catch(() => {
-				// Reclaim is periodic and self-healing: a failed pass (e.g. a closed
-				// client mid-shutdown) is retried on the next interval.
-			});
+			this.reclaim().catch(() => {});
 		}, this.options.reclaim.interval);
 		this.heartbeatTimer = setInterval(() => {
-			this.heartbeat().catch(() => {
-				// Self-healing like reclaim: a missed heartbeat is refreshed next tick,
-				// and the TTL is sized well above the interval to tolerate a miss.
-			});
+			this.heartbeat().catch(() => {});
 		}, this.options.broadcast.heartbeatInterval);
 		this.reaperTimer = setInterval(() => {
-			this.reap().catch(() => {
-				// Self-healing: a failed reap pass is retried on the next interval.
-			});
+			this.reap().catch(() => {});
 		}, this.options.reaper.interval);
 	}
 
@@ -100,9 +79,6 @@ export class RedisStreamsBroker implements Broker {
 		this.heartbeatTimer = undefined;
 		this.reaperTimer = undefined;
 		this.throughput.stop();
-		// Graceful broadcast teardown: destroy this instance's per-instance groups so
-		// they don't linger as orphans until the reaper's TTL expires. A crash skips
-		// this — the reaper is the backstop (PRD §8).
 		await this.cleanupBroadcastGroups();
 		for (const state of this.consumers) {
 			state.stopped = true;
@@ -118,9 +94,7 @@ export class RedisStreamsBroker implements Broker {
 	}
 
 	async publish(topic: Topic, body: Bytes): Promise<void> {
-		// No MAXLEN on a live topic stream: trimming by age/count would drop entries
-		// a slow consumer group has not read yet, breaking at-least-once. Bounded
-		// growth is handled by the opt-in MINID reaper instead (PRD §8).
+		// No MAXLEN: trimming by count/age would drop entries a slow consumer hasn't read, breaking at-least-once.
 		try {
 			await this.requireWriteClient().xAdd(topic.name, "*", {
 				[PAYLOAD_FIELD]: Buffer.from(body),
@@ -140,9 +114,6 @@ export class RedisStreamsBroker implements Broker {
 		await this.ensureGroup(stream, group, sub.startFrom);
 
 		if (broadcast) {
-			// Register the group and prove liveness BEFORE the first read, so a reaper
-			// pass running between now and the first heartbeat tick can't mistake this
-			// brand-new group for an orphan and destroy it.
 			await this.registerBroadcastGroup(stream, group);
 		}
 
@@ -166,22 +137,11 @@ export class RedisStreamsBroker implements Broker {
 				state.stopped = true;
 				this.consumers.delete(state);
 				if (broadcast) await this.destroyBroadcastGroup(stream, group);
-				// destroy(), not close(): a blocking XREADGROUP holds the socket until
-				// its timeout; destroy force-closes so the loop unblocks now.
 				state.readClient.destroy();
 			},
 		};
 	}
 
-	// Re-publish dead-lettered messages back onto their live topic. Reads the
-	// per-handler dead stream `{topic}:dead:{name}`, parses each DeadLetter frame,
-	// and publishes the ORIGINAL envelope bytes to `topic` — so the Worker consumes
-	// them fresh (deliveryCount 1). Idempotent on `originalId`: an id already
-	// redriven is skipped, so re-running after a partial pass never double-drives.
-	// `name` is the full subscription name (namespace-folded, as registered), the
-	// same value the dead stream key was built from. Publish happens before the
-	// idempotency mark, so a crash between the two re-drives next run (at-least-once,
-	// idempotent handlers) rather than silently dropping the message.
 	async redriveDeadLetters(opts: {
 		topic: Topic;
 		name: string;
@@ -215,11 +175,6 @@ export class RedisStreamsBroker implements Broker {
 		return { redriven, skipped };
 	}
 
-	// The consumer group: `flume:{sub.name}` for competing (shared → load splits),
-	// `flume:{sub.name}:{instanceId}` for broadcast (per-instance → every instance
-	// sees every message). sub.name already carries the namespace (the facade folded
-	// it in), so the adapter only prefixes `flume:` and stays namespace-agnostic
-	// (PRD §8).
 	private groupFor(sub: Subscription): string {
 		const base = `flume:${sub.name}`;
 		return sub.delivery === DeliveryMode.Broadcast
@@ -232,9 +187,6 @@ export class RedisStreamsBroker implements Broker {
 		group: string,
 		startFrom: StartFrom,
 	): Promise<void> {
-		// "new" → `$` (only events after the group is created); "beginning" → `0`
-		// (replay history). MKSTREAM creates the stream if the topic has no events
-		// yet. BUSYGROUP means the group already exists — idempotent by design.
 		const start = startFrom === "beginning" ? "0" : "$";
 		try {
 			await this.requireWriteClient().xGroupCreate(stream, group, start, {
@@ -261,23 +213,15 @@ export class RedisStreamsBroker implements Broker {
 				for (const stream of response) {
 					for (const raw of stream.messages) {
 						this.throughput.hit();
-						// A fresh XREADGROUP read is attempt 1 by definition — no extra
-						// round-trip to learn the count (PRD §7/§8).
 						await this.deliver(state, idOf(raw.id), bodyOf(raw.message), 1);
 					}
 				}
 			} catch (error) {
 				if (state.stopped || isClientClosedError(error)) return;
-				// Transient driver error (e.g. a reconnect): node-redis re-queues the
-				// next read after reconnection, so loop rather than tear down.
 			}
 		}
 	}
 
-	// Periodic reclaim of messages idle past minIdleTime. Non-JUSTID XAUTOCLAIM
-	// increments the delivery count as it claims, then XPENDING reports the
-	// authoritative count — the only occasion the count is meaningful (PRD §8).
-	// The Worker, not the adapter, decides dead-letter from that count.
 	private async reclaim(): Promise<void> {
 		const reclaimClient = this.reclaimClient;
 		if (reclaimClient === undefined || !this.shouldReclaim()) return;
@@ -288,16 +232,6 @@ export class RedisStreamsBroker implements Broker {
 		}
 	}
 
-	// Sweep one consumer group's whole pending set. A single XAUTOCLAIM only scans
-	// COUNT entries from its start cursor and returns `nextId` to continue from;
-	// always starting at "0" re-touches the head of the PEL forever and starves the
-	// tail of a large failing backlog. Follow `nextId` until it wraps to "0-0" so
-	// the entire backlog is reached each pass. Per-entry minIdleTime and the
-	// pass-level throughput gate (shouldReclaim) still bound what a sweep claims, so
-	// it never steals more in-flight work than a single claim would. The cost is
-	// O(PEL) round-trips per pass on the dedicated reclaim connection; a hot stream
-	// can only grow its PEL by reading above throughputThreshold, which closes the
-	// gate, so a large non-idle PEL is not swept every interval.
 	private async reclaimStream(
 		reclaimClient: ReadClient,
 		state: ConsumerState,
@@ -319,29 +253,20 @@ export class RedisStreamsBroker implements Broker {
 				const count = await this.deliveryCount(state, id);
 				await this.deliver(state, id, bodyOf(raw.message), count);
 			}
-			// Under the read client's blob→Buffer mapping the cursor decodes to a
-			// Buffer (like message ids); normalize so the "0-0" terminator compares.
+			// idOf() normalizes the Buffer cursor so the "0-0" terminator compares (raw compare would loop forever).
 			cursor = idOf(claim.nextId);
 		} while (cursor !== "0-0");
 	}
 
-	// Slow-but-healthy mitigation: only reclaim when this instance is underloaded.
-	// A saturated consumer leaves pending messages for idler siblings rather than
-	// stealing (and inflating the count of) work that is merely in-flight (PRD §8).
 	private shouldReclaim(): boolean {
 		return (
 			this.throughput.perSecond() < this.options.reclaim.throughputThreshold
 		);
 	}
 
-	// Refresh the liveness key for every broadcast group this instance owns. Redis
-	// expires the key on its own (server-side TTL), so the reaper's death test needs
-	// no client clock and is immune to cross-instance clock skew.
 	private async heartbeat(): Promise<void> {
 		const writeClient = this.writeClient;
 		if (writeClient === undefined) return;
-		// Refresh concurrently: a slow SET on one group must not delay the others in
-		// the same tick and let their TTL lapse under the reaper.
 		const refreshes: Promise<unknown>[] = [];
 		for (const state of this.consumers) {
 			if (!state.broadcast || state.stopped) continue;
@@ -362,20 +287,14 @@ export class RedisStreamsBroker implements Broker {
 		group: string,
 	): Promise<void> {
 		const writeClient = this.requireWriteClient();
-		// Liveness key BEFORE registry membership: the reaper reaps a registry member
-		// whose heartbeat is missing, so a group must never be visible in the registry
-		// without its heartbeat already present — otherwise a reaper racing between the
-		// two writes would destroy a brand-new group.
+		// Heartbeat key written BEFORE registry SADD: a reaper racing between the two writes
+		// would destroy a brand-new group if the key were absent when it checks the registry.
 		await writeClient.set(this.heartbeatKey(group), "1", {
 			expiration: { type: "PX", value: this.options.broadcast.heartbeatTtl },
 		});
 		await writeClient.sAdd(this.registryKey(stream), group);
 	}
 
-	// Periodic reaper (PRD §8): for every stream this instance consumes, destroy
-	// expired broadcast groups, then — only when trimming is enabled — XTRIM the
-	// stream by the min low-water-mark across the LIVE groups. Dead broadcast groups
-	// are reaped FIRST so a frozen orphan can't pin the trim point.
 	private async reap(): Promise<void> {
 		const writeClient = this.writeClient;
 		if (writeClient === undefined) return;
@@ -392,11 +311,6 @@ export class RedisStreamsBroker implements Broker {
 		}
 	}
 
-	// Destroy broadcast groups whose instance stopped heartbeating (TTL key gone),
-	// returning the destroyed group names so the trim step excludes them. Competing
-	// groups never appear in the registry, so they are never touched. XGROUP DESTROY
-	// and SREM are both idempotent, so racing instances reaping the same orphan is
-	// harmless — no Lua/transaction needed.
 	private async destroyExpiredBroadcastGroups(
 		writeClient: WriteClient,
 		stream: string,
@@ -413,12 +327,6 @@ export class RedisStreamsBroker implements Broker {
 		return dead;
 	}
 
-	// Trim a live topic stream to the minimum low-water-mark across its live groups
-	// (PRD §8). The per-group low-water-mark is its oldest UNACKED pending id when it
-	// has pending entries, else its last-delivered id — never above what a group
-	// still needs, which keeps at-least-once intact even for a slow handler whose
-	// entry is delivered-but-not-yet-acked. Excludes the just-reaped dead groups so a
-	// frozen orphan can't freeze trimming.
 	private async trimStream(
 		writeClient: WriteClient,
 		stream: string,
@@ -459,10 +367,9 @@ export class RedisStreamsBroker implements Broker {
 		if (this.writeClient === undefined) return;
 		for (const state of this.consumers) {
 			if (!state.broadcast) continue;
-			await this.destroyBroadcastGroup(state.stream, state.group).catch(() => {
-				// Best-effort on shutdown: the reaper destroys it later via TTL if this
-				// fails, so a teardown error must not block close().
-			});
+			await this.destroyBroadcastGroup(state.stream, state.group).catch(
+				() => {},
+			);
 		}
 	}
 
@@ -495,10 +402,6 @@ export class RedisStreamsBroker implements Broker {
 			id,
 			1,
 		);
-		// We only call this for a message XAUTOCLAIM just claimed, so it is always
-		// in the PEL with count ≥ 2. The fallback is unreachable in practice; if a
-		// concurrent ack ever emptied the range, treating it as a fresh delivery is
-		// the at-least-once-safe choice (re-run, don't wrongly dead-letter).
 		return pending.length > 0 ? pending[0].deliveriesCounter : 1;
 	}
 
@@ -537,16 +440,10 @@ export class RedisStreamsBroker implements Broker {
 	}
 }
 
-// Required, not defensive: in RESP2 every bulk reply is a BLOB_STRING, so under
-// the blob→Buffer type mapping the message id ("1718-0") genuinely decodes to a
-// Buffer (verified: `Buffer.isBuffer(id) === true`). Normalize it back to the
-// ASCII string the port — and DeadLetter.originalId — expects.
 function idOf(id: Buffer | string): string {
 	return id.toString();
 }
 
-// The payload field decodes to a Buffer (binary-clean). Buffer is a Uint8Array,
-// which is exactly the port's `Bytes`.
 function bodyOf(message: Record<string, Buffer>): Bytes {
 	const body = message[PAYLOAD_FIELD];
 	if (body === undefined) {

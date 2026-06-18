@@ -1,5 +1,3 @@
-// Core entry — framework-agnostic, zero runtime dependencies. Never imports a
-// broker client; adapters (e.g. Redis) ship behind their own entry points.
 export * from "./application/dispatcher";
 export * from "./application/duplicate-subscription-error";
 export * from "./application/envelope";

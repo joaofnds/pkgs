@@ -14,8 +14,6 @@ interface Line {
 	fields: Record<string, unknown>;
 }
 
-// A hand-written recording logger — no mocking framework. Captures every line so
-// a test can assert what the probe emitted.
 class RecordingLogger implements ProbeLogger {
 	readonly lines: Line[] = [];
 

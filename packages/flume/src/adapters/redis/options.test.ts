@@ -12,8 +12,6 @@ describe("resolveOptions", () => {
 	});
 
 	it("rejects a broadcast TTL that is not above the heartbeat interval", () => {
-		// TTL ≤ interval lets a live group's key lapse between refreshes, so the
-		// reaper would destroy a group still in use — fail fast instead.
 		expect(() =>
 			resolveOptions({
 				redis,

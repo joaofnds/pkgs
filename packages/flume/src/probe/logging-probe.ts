@@ -5,10 +5,6 @@ import { Probe } from "../ports/probe";
 import { ConsoleProbeLogger } from "./console-probe-logger";
 import { ProbeLogger } from "./probe-logger";
 
-// Production Probe: emits a structured log line per business event (the no-op
-// FakeProbe stays the test default). Lifecycle events (dispatched, processed) log
-// at info; failures and dead-letters at error. Guarding stays the core's job —
-// Dispatcher/Worker wrap their probe in GuardedProbe — so this impl just logs.
 export class LoggingProbe implements Probe {
 	constructor(
 		private readonly logger: ProbeLogger = new ConsoleProbeLogger(),

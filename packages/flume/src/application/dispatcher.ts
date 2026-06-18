@@ -6,10 +6,6 @@ import { Publisher } from "../ports/publisher";
 import { Envelope } from "./envelope";
 import { GuardedProbe } from "./guarded-probe";
 
-// Producer side. Frames the versioned envelope — stamping dispatchedAt from the
-// injected Clock, no global time — and publishes its bytes. The durable publish
-// happens first; the probe call is last and guarded, so a thrown probe can never
-// make a successful dispatch reject.
 export class Dispatcher {
 	private readonly probe: Probe;
 

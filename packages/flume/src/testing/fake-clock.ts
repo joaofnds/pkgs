@@ -1,7 +1,5 @@
 import { Clock } from "../ports/clock";
 
-// Deterministic clock for tests. Starts at the epoch so a test that never sets a
-// time still gets a stable, repeatable value.
 export class FakeClock implements Clock {
 	private current: Date;
 

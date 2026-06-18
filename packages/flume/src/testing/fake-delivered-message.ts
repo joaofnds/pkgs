@@ -2,8 +2,6 @@ import { Topic } from "../domain/topic";
 import { Bytes } from "../ports/codec";
 import { DeliveredMessage } from "../ports/consumer";
 
-// A message handed to a consumer. Captures whether it was acked or nacked so a
-// test can assert the Worker's decision without reaching into the broker.
 export class FakeDeliveredMessage implements DeliveredMessage {
 	acked = false;
 	nacked = false;

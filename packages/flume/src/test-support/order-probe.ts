@@ -8,10 +8,6 @@ export interface ProbeCall {
 	nacked: boolean;
 }
 
-// Records the message's ack/nack state at the moment each probe call fires, so a
-// test can prove the broker side-effect ran BEFORE the probe (PRD §11: probe
-// calls are last in each branch, so a misbehaving probe can never block an
-// ack/nack). A recording Spy, not a mock framework.
 export class OrderProbe implements Probe {
 	readonly calls: ProbeCall[] = [];
 

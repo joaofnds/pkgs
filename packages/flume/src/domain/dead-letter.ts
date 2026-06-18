@@ -2,16 +2,6 @@ import { TruncatedDeadLetterError } from "./truncated-dead-letter-error";
 
 const ID_LENGTH_BYTES = 4;
 
-// A handler's message parked after exhausting its retry policy. Frames the
-// ORIGINAL broker message id (only known at consume time) alongside the original
-// envelope bytes so a redrive utility can dedup/re-publish idempotently on
-// `originalId` — carried in the body, so the generic Publisher port stays
-// unchanged. Lives in domain/ (not application/ with Envelope) because it crosses
-// both ways: the Worker frames it and the Redis adapter's redrive parses it, and
-// the adapter may import only domain/ports (PRD §13). Uses Uint8Array directly so
-// domain/ depends on nothing outward.
-//
-// Layout: [idLength u32 BE][originalId utf8][body bytes...]
 export class DeadLetter {
 	readonly originalId: string;
 	readonly body: Uint8Array;

@@ -11,10 +11,6 @@ import { Envelope } from "./envelope";
 import { GuardedProbe } from "./guarded-probe";
 import { WorkerAlreadyStartedError } from "./worker-already-started-error";
 
-// Consumer side. Owns the retry/dead-letter POLICY; the broker owns redelivery
-// mechanics. The dead-letter decision can only fire on a redelivery (where the
-// count is authoritative); a fresh delivery is always count 1, so it always
-// attempts the handler.
 export class Worker {
 	private readonly probe: Probe;
 	private readonly subscriptions = new Map<string, Subscription>();
@@ -30,9 +26,6 @@ export class Worker {
 		this.probe = new GuardedProbe(probe);
 	}
 
-	// Rejects a duplicate {topic, name}: two subs sharing a name would share one
-	// consumer group and split work, silently destroying per-handler isolation.
-	// Registering after start() would silently never be consumed, so reject it.
 	register(sub: Subscription): void {
 		if (this.started) {
 			throw new WorkerAlreadyStartedError();
@@ -43,9 +36,6 @@ export class Worker {
 		this.subscriptions.set(sub.key(), sub);
 	}
 
-	// Not re-entrant: a second start() would open a duplicate consumer per
-	// subscription (on Redis, two blocking XREADGROUP loops in one group), so it
-	// fails fast instead of silently double-subscribing.
 	async start(): Promise<void> {
 		if (this.started) {
 			throw new WorkerAlreadyStartedError();

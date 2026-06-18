@@ -12,10 +12,6 @@ import { RedisStreamsBroker } from "../src/redis";
 import { BrokerHarness } from "./support/harness";
 import { uniqueTopic, waitFor } from "./support/wait";
 
-// Adapter-level tests exercise the broker port directly against real Redis — the
-// behaviors only a real broker can prove: fresh count 1, binary-clean reads,
-// ack/nack ↔ XACK/PEL, reclaim attempt accounting, group start position.
-
 const NOOP_HANDLER: EventHandler = { async handle() {} };
 
 function subscription(
@@ -33,8 +29,6 @@ function subscription(
 	});
 }
 
-// Records delivered messages and acks/nacks each per its mode, so a test can drive
-// the broker's redelivery machinery and inspect the messages it produced.
 class Deliveries {
 	readonly messages: DeliveredMessage[] = [];
 	mode: "ack" | "nack" = "ack";
@@ -123,10 +117,6 @@ describe("RedisStreamsBroker", () => {
 	});
 
 	it("reclaims the entire backlog when it exceeds the reclaim count", async () => {
-		// A reclaim pass that always restarts XAUTOCLAIM at cursor "0" only re-touches
-		// the first `count` pending entries, starving the tail of a large failing
-		// backlog. With `count` below the backlog size, every nacked message must still
-		// eventually be redelivered — proving the pass follows the cursor to "0-0".
 		const small = await BrokerHarness.start({
 			reclaim: {
 				interval: 50,
@@ -141,8 +131,6 @@ describe("RedisStreamsBroker", () => {
 			deliveries.mode = "nack";
 			await small.broker.consume(subscription(topic, "h"), deliveries.deliver);
 
-			// > reclaim count (5): three windows (⌈12/5⌉), so the cursor must advance
-			// past the head twice — a head-only reclaim would never reach the tail.
 			const backlog = 12;
 			for (let i = 0; i < backlog; i++) {
 				await small.broker.publish(new Topic(topic), encode(`m${i}`));
@@ -191,10 +179,6 @@ describe("RedisStreamsBroker", () => {
 	});
 
 	it("does not reclaim while local throughput is above the gate threshold", async () => {
-		// threshold 0 forces the gate permanently closed (perSecond is never < 0), so
-		// reclaim must never run — the slow-but-healthy mitigation (PRD §8): a busy
-		// consumer leaves pending work alone rather than stealing (and inflating the
-		// count of) messages that may still be in flight.
 		const gated = await BrokerHarness.start({
 			reclaim: {
 				interval: 50,
@@ -212,7 +196,6 @@ describe("RedisStreamsBroker", () => {
 			await gated.broker.publish(new Topic(topic), encode("stuck"));
 			await waitFor(() => deliveries.messages.length === 1);
 
-			// Several reclaim intervals pass; with the gate closed, no redelivery.
 			await new Promise((resolve) => setTimeout(resolve, 300));
 			expect(deliveries.messages).toHaveLength(1);
 		} finally {
@@ -221,10 +204,6 @@ describe("RedisStreamsBroker", () => {
 	});
 
 	it("splits work across competing consumers (distinct instances) in the same group", async () => {
-		// Two broker instances with distinct consumer names model competing
-		// consumers across processes (PRD §9): one shared group, each message
-		// processed once across the fleet. Distinct names are also what lets reclaim
-		// steal from a crashed instance.
 		const instanceB = await BrokerHarness.start({ consumerName: "instance-b" });
 		try {
 			const topic = uniqueTopic();
