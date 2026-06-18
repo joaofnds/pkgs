@@ -39,7 +39,7 @@ describe(StreamsConnectorModule, () => {
 	describe("when handler fails", () => {
 		it("retries", async () => {
 			const originalHandler = appB.handle;
-			appB.handle = jest.fn(() => Promise.reject("oops"));
+			appB.handle = vi.fn(() => Promise.reject("oops"));
 
 			appA.emit("A");
 			await appB.eventEmitter.waitFor("failed");
@@ -54,7 +54,7 @@ describe(StreamsConnectorModule, () => {
 		describe("when exceeds maxDeliveries", () => {
 			it("is not delivered a again", async () => {
 				appB.options.reclaim.maxDeliveries = 1;
-				appB.handle = jest.fn(() => Promise.reject("oops"));
+				appB.handle = vi.fn(() => Promise.reject("oops"));
 
 				appA.emit("A");
 				await appB.eventEmitter.waitFor("dead:foo");
