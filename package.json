@@ -15,8 +15,6 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.0",
-		"@nx/jest": "23.0.0",
-		"jest": "^30.4.2",
 		"nx": "23.0.0"
 	},
 	"pnpm": {

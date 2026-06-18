@@ -20,14 +20,7 @@
 			}
 		}
 	},
-	"plugins": [
-		{
-			"plugin": "@nx/jest/plugin",
-			"options": {
-				"targetName": "test"
-			}
-		}
-	],
+	"plugins": [],
 	"release": {
 		"projectsRelationship": "independent",
 		"changelog": {
@@ -40,5 +33,6 @@
 				"registry": "https://npm.pkg.github.com"
 			}
 		}
-	}
+	},
+	"analytics": false
 }
