@@ -1,0 +1,9 @@
+// A Topic is the named channel an event flows on (e.g. "user.created").
+// Value object: a single immutable name with identity by value.
+export class Topic {
+	constructor(readonly name: string) {}
+
+	equals(other: Topic): boolean {
+		return this.name === other.name;
+	}
+}

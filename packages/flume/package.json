@@ -1,0 +1,32 @@
+{
+	"name": "@joaofnds/flume",
+	"version": "0.0.0",
+	"license": "MIT",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
+		},
+		"./testing": {
+			"types": "./dist/testing.d.ts",
+			"default": "./dist/testing.js"
+		}
+	},
+	"author": "joaofnds <joaofnds@joaofnds.com>",
+	"repository": {
+		"url": "https://github.com/joaofnds/pkgs.git",
+		"type": "git",
+		"directory": "packages/flume"
+	},
+	"scripts": {
+		"prebuild": "rm -rf dist",
+		"build": "tsc --build",
+		"test": "vitest run"
+	},
+	"devDependencies": {
+		"@types/node": "^24.13.2",
+		"typescript": "^6.0.3"
+	}
+}
