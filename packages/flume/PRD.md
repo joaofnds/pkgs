@@ -695,6 +695,13 @@ enforce it so the arrow can't silently reverse.
   install it. (The package also lists `redis` as a `devDependency` so its own
   integration tests run.) When the adapter is later extracted to
   `@joaofnds/flume-redis`, `redis` becomes that package's own direct dependency.
+- **`@joaofnds/throughput` gets the *same* optional-peer treatment.** The Redis
+  adapter gates its reclaim loop on local throughput (§8 slow-but-healthy
+  mitigation), so it depends on `@joaofnds/throughput` — but only under `./redis`.
+  Making it a regular `dependency` would install it for core-only/NATS consumers
+  too, so it is an **optional `peerDependency`** (+ `devDependency` for the
+  tests/benchmark), exactly like `redis`. It also becomes a direct dependency of
+  `@joaofnds/flume-redis` on extraction.
 - `JsonCodec`, `SystemClock`: dependency-free, shipped as core defaults.
 
 **Future split.** Publishing `@joaofnds/flume-redis` / `@joaofnds/flume-nats`
