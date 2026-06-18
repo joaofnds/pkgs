@@ -30,9 +30,12 @@ import {
 const REDIS_URL = "redis://localhost:6381";
 const CONNECTION = { host: "localhost", port: 6381 };
 
-const PAYLOADS = [64, 1024, 16384];
-const COUNTS = [1000, 10000];
-const CONCURRENCY = [50, 200, 500];
+// BENCH_FAST shrinks the matrix to one representative competing variant and skips
+// the broadcast sub-sweep + headline, for quick before/after iteration on a change.
+const FAST = process.env.BENCH_FAST !== undefined;
+const PAYLOADS = FAST ? [1024] : [64, 1024, 16384];
+const COUNTS = FAST ? [10000] : [1000, 10000];
+const CONCURRENCY = FAST ? [200] : [50, 200, 500];
 const MAX_PAYLOAD = Math.max(...PAYLOADS);
 
 const SAMPLES = { warmup_samples: 3, min_samples: 8, max_samples: 16 };
@@ -270,7 +273,7 @@ function printBroadcast(results: VariantResult[]): void {
 // aren't penalized by cold-start relative to later ones.
 async function warmup(): Promise<void> {
 	const variant: Variant = {
-		count: 5000,
+		count: FAST ? 2000 : 5000,
 		payload: 1024,
 		concurrency: 200,
 		mode: "competing",
@@ -279,9 +282,10 @@ async function warmup(): Promise<void> {
 		new FlumeSystem(REDIS_URL, MAX_PAYLOAD),
 		new BullSystem(CONNECTION),
 	];
+	const rounds = FAST ? 1 : 3;
 	for (const system of systems) {
 		await system.setup(variant);
-		for (let i = 0; i < 3; i++) await system.runBatch(false);
+		for (let i = 0; i < rounds; i++) await system.runBatch(false);
 		await system.teardown();
 	}
 }
@@ -339,30 +343,34 @@ async function main(): Promise<void> {
 	}
 
 	const broadcast: VariantResult[] = [];
-	for (const payload of PAYLOADS) {
-		for (const mode of ["competing", "broadcast"] as const) {
-			const variant: Variant = {
-				count: 10000,
-				payload,
-				concurrency: 200,
-				mode,
-			};
-			progress(`[broadcast] flume ${label(variant)} …`);
-			broadcast.push(
-				await measureSystem(
-					new FlumeSystem(REDIS_URL, MAX_PAYLOAD),
-					variant,
-					maint,
-				),
-			);
+	if (!FAST) {
+		for (const payload of PAYLOADS) {
+			for (const mode of ["competing", "broadcast"] as const) {
+				const variant: Variant = {
+					count: 10000,
+					payload,
+					concurrency: 200,
+					mode,
+				};
+				progress(`[broadcast] flume ${label(variant)} …`);
+				broadcast.push(
+					await measureSystem(
+						new FlumeSystem(REDIS_URL, MAX_PAYLOAD),
+						variant,
+						maint,
+					),
+				);
+			}
 		}
 	}
 
 	printThroughput(results);
 	printLatency(results);
 	printOps(results);
-	printBroadcast(broadcast);
-	await headline();
+	if (!FAST) {
+		printBroadcast(broadcast);
+		await headline();
+	}
 
 	await maint.close();
 }
