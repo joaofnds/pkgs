@@ -14,7 +14,7 @@
 		"prebuild": "rm -rf dist",
 		"build": "tsc --build",
 		"pretest": "docker compose up -d",
-		"test": "jest",
+		"test": "vitest run",
 		"posttest": "docker compose down"
 	},
 	"dependencies": {
@@ -29,9 +29,8 @@
 		"@nestjs/platform-express": "^11.1.27",
 		"@nestjs/testing": "^11.1.27",
 		"@swc/core": "^1.15.41",
-		"@swc/jest": "^0.2.39",
-		"@types/jest": "^30.0.0",
-		"jest": "^30.4.2",
-		"typescript": "^6.0.3"
+		"typescript": "^6.0.3",
+		"unplugin-swc": "^1.5.9",
+		"vitest": "^4.1.9"
 	}
 }
