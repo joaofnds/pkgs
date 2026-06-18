@@ -31,7 +31,8 @@
 		"pretest": "pnpm run typecheck && docker compose up -d",
 		"test": "vitest run",
 		"posttest": "docker compose down",
-		"bench": "docker compose up -d && NODE_OPTIONS=--expose-gc tsx benchmark/throughput.bench.ts; docker compose down"
+		"bench": "docker compose up -d && NODE_OPTIONS=--expose-gc tsx benchmark/throughput.bench.ts; docker compose down",
+		"bench:profile": "docker compose up -d && tsx benchmark/profile.ts; docker compose down"
 	},
 	"peerDependencies": {
 		"@joaofnds/throughput": "^0.6.6",
