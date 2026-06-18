@@ -13,6 +13,7 @@ import { AckBatch } from "./ack-batch";
 import { BrokerError } from "./broker-error";
 import { BrokerNotConnectedError } from "./broker-not-connected-error";
 import {
+	createBlockingReadClient,
 	createReadClient,
 	createWriteClient,
 	ReadClient,
@@ -118,7 +119,10 @@ export class RedisStreamsBroker implements Broker {
 			await this.registerBroadcastGroup(stream, group);
 		}
 
-		const readClient = createReadClient(this.options.redis);
+		const readClient = createBlockingReadClient(
+			this.options.redis,
+			this.options.readTimeout,
+		);
 		await readClient.connect();
 
 		const state: ConsumerState = {

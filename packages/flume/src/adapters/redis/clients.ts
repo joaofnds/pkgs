@@ -24,6 +24,23 @@ export function createReadClient(options: RedisClientOptions): ReadClient {
 	});
 }
 
+const BLOCKING_TIMEOUT_MARGIN_MS = 1000;
+
+export function blockingCommandTimeout(blockMs: number): number {
+	return blockMs + BLOCKING_TIMEOUT_MARGIN_MS;
+}
+
+export function createBlockingReadClient(
+	options: RedisClientOptions,
+	blockMs: number,
+): ReadClient {
+	return createClient({
+		...options,
+		RESP: 2,
+		commandOptions: { timeout: blockingCommandTimeout(blockMs) },
+	}).withTypeMapping({ [RESP_TYPES.BLOB_STRING]: Buffer });
+}
+
 // RESP 2: XINFO GROUPS has no RESP3 transform in node-redis v6.
 export function createWriteClient(options: RedisClientOptions) {
 	return createClient({ ...options, RESP: 2 });
