@@ -1,14 +1,14 @@
 export class AckBatch {
 	readonly ids: string[] = [];
 	private readonly flushed: Promise<void>;
-	private settle!: () => void;
-	private fail!: (error: unknown) => void;
+	private readonly settle: () => void;
+	private readonly fail: (error: unknown) => void;
 
 	constructor() {
-		this.flushed = new Promise<void>((resolve, reject) => {
-			this.settle = resolve;
-			this.fail = reject;
-		});
+		const { promise, resolve, reject } = Promise.withResolvers<void>();
+		this.flushed = promise;
+		this.settle = resolve;
+		this.fail = reject;
 	}
 
 	add(id: string): Promise<void> {

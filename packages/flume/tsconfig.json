@@ -2,6 +2,7 @@
 	"files": ["src/index.ts", "src/redis.ts", "src/testing.ts"],
 	"compilerOptions": {
 		"declaration": true,
+		"lib": ["es2024"],
 		"module": "commonjs",
 		"outDir": "./dist",
 		"rootDir": "./src",
