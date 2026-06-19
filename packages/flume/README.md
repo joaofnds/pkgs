@@ -46,11 +46,12 @@ Published to GitHub Packages under the `@joaofnds` scope.
 pnpm add @joaofnds/flume
 ```
 
-The core (`@joaofnds/flume`) has **zero runtime dependencies**. For a Redis-backed
-broker, add [`@joaofnds/flume-redis`](../flume-redis):
+The core (`@joaofnds/flume`) has **zero runtime dependencies**. Add a broker adapter for
+the backend you run — [`@joaofnds/flume-redis`](../flume-redis) (Redis Streams) or
+[`@joaofnds/flume-nats`](../flume-nats) (NATS JetStream):
 
 ```
-pnpm add @joaofnds/flume-redis redis
+pnpm add @joaofnds/flume-redis redis      # or: @joaofnds/flume-nats nats
 ```
 
 ## Entry points
@@ -58,13 +59,14 @@ pnpm add @joaofnds/flume-redis redis
 | Import | Contents |
 | --- | --- |
 | `@joaofnds/flume` | core — `Flume`, `Dispatcher`, `Worker`, domain types, `JsonCodec`, `SystemClock`, `LoggingProbe` |
-| `@joaofnds/flume/testing` | `FakeBroker`, `FakeClock`, `FakeProbe`, `RecordingHandler` for unit tests with no Redis |
+| `@joaofnds/flume/testing` | `FakeBroker`, `FakeClock`, `FakeProbe`, `RecordingHandler` for unit tests with no broker |
 | [`@joaofnds/flume-redis`](../flume-redis) | `RedisStreamsBroker` and its options/errors — a separate package |
+| [`@joaofnds/flume-nats`](../flume-nats) | `NatsStreamsBroker` over NATS JetStream — a separate package |
 
 The split is physical: the core never imports an adapter, so a core-only consumer
-installs neither `redis` nor `@joaofnds/throughput`. The Redis adapter and its
-integration tests live in their own package — see its README for setup, options, and
-dead-letter redrive.
+installs no broker client. Each adapter and its integration tests live in their own
+package; both are verified against the shared [`@joaofnds/flume-tck`](../flume-tck) broker
+contract suite, and [`@joaofnds/flume-bench`](../flume-bench) compares them head-to-head.
 
 ## Quick start
 
