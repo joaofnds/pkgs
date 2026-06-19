@@ -8,9 +8,9 @@ import {
 	Subscription,
 	Topic,
 } from "@joaofnds/flume";
+import { uniqueTopic, waitFor } from "@joaofnds/flume-tck";
 import { afterEach, describe, expect, it } from "vitest";
 import { BrokerHarness } from "./support/harness";
-import { uniqueTopic, waitFor } from "./support/wait";
 
 const NOOP: EventHandler = { async handle() {} };
 

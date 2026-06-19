@@ -8,5 +8,8 @@ export default defineConfig({
 		environment: "node",
 		testTimeout: 20000,
 		hookTimeout: 30000,
+		// @joaofnds/flume-tck ships TypeScript source (a vitest helper, never
+		// built), so vitest must transform it rather than externalize it.
+		server: { deps: { inline: [/@joaofnds\/flume-tck/] } },
 	},
 });

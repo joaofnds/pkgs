@@ -1,0 +1,27 @@
+{
+	"name": "@joaofnds/flume-tck",
+	"version": "0.0.0",
+	"license": "MIT",
+	"main": "src/index.ts",
+	"types": "src/index.ts",
+	"author": "joaofnds <joaofnds@joaofnds.com>",
+	"repository": {
+		"url": "https://github.com/joaofnds/pkgs.git",
+		"type": "git",
+		"directory": "packages/flume-tck"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit -p tsconfig.json"
+	},
+	"dependencies": {
+		"@joaofnds/flume": "workspace:^"
+	},
+	"peerDependencies": {
+		"vitest": "^4.0.0"
+	},
+	"devDependencies": {
+		"@types/node": "^24.13.2",
+		"typescript": "^6.0.3",
+		"vitest": "^4.1.9"
+	}
+}

@@ -73,6 +73,9 @@ importers:
         specifier: workspace:^
         version: link:../throughput
     devDependencies:
+      '@joaofnds/flume-tck':
+        specifier: workspace:^
+        version: link:../flume-tck
       '@types/node':
         specifier: ^24.13.2
         version: 24.13.2
@@ -94,6 +97,22 @@ importers:
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
+
+  packages/flume-tck:
+    dependencies:
+      '@joaofnds/flume':
+        specifier: workspace:^
+        version: link:../flume
+    devDependencies:
+      '@types/node':
+        specifier: ^24.13.2
+        version: 24.13.2
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.9
+        version: 4.1.9(@types/node@24.13.2)(vite@8.0.16(@types/node@24.13.2)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/state-markov:
     devDependencies:

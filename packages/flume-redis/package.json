@@ -28,6 +28,7 @@
 		"redis": "^6.0.0"
 	},
 	"devDependencies": {
+		"@joaofnds/flume-tck": "workspace:^",
 		"@types/node": "^24.13.2",
 		"bullmq": "^5.78.1",
 		"ioredis": "^5.11.1",
