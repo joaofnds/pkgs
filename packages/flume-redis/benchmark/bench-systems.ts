@@ -2,10 +2,16 @@
 // matrix runner treats them identically. Each system owns its own connections,
 // runs a persistent consumer set up once (not timed), and exposes runBatch() —
 // publish `count` messages and resolve when all are processed.
+
+import {
+	DeliveryMode,
+	RetryPolicy,
+	Subscription,
+	Topic,
+} from "@joaofnds/flume";
 import { Worker as BullWorker, Job, Queue } from "bullmq";
 import { createClient } from "redis";
-import { DeliveryMode, RetryPolicy, Subscription, Topic } from "../src/index";
-import { RedisStreamsBroker } from "../src/redis";
+import { RedisStreamsBroker } from "../src/index";
 
 export interface Variant {
 	readonly count: number;

@@ -3,7 +3,7 @@ import {
 	RedisStreamsBroker,
 	RedisStreamsBrokerOptions,
 	ResolvedOptions,
-} from "../../src/redis";
+} from "../../src/index";
 
 export const REDIS_URL = "redis://localhost:6381";
 

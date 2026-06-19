@@ -8,6 +8,11 @@ Status: **draft** · Owner: joaofnds · Scope of this doc: the framework-agnosti
 **core** + the **Redis Streams** adapter. NestJS integration is explicitly out of
 scope for v1 and arrives later as a driving adapter.
 
+> **Packaging note.** The Redis Streams adapter now ships as its own package,
+> `@joaofnds/flume-redis` (import `RedisStreamsBroker` from there, not the former
+> `@joaofnds/flume/redis` subpath). This doc still specs both the core and the adapter
+> as one design; only the published artifact boundary changed.
+
 ---
 
 ## 1. Background & motivation

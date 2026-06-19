@@ -6,8 +6,8 @@ import {
 	Subscription,
 	Topic,
 } from "../index";
-import { RecordingHandler } from "../test-support/recording-handler";
 import { FakeBroker } from "./fake-broker";
+import { RecordingHandler } from "./recording-handler";
 
 describe(FakeBroker, () => {
 	const sub = new Subscription({

@@ -1,6 +1,4 @@
-import { Topic } from "../../domain/topic";
-import { Bytes } from "../../ports/codec";
-import { DeliveredMessage } from "../../ports/consumer";
+import { Bytes, DeliveredMessage, Topic } from "@joaofnds/flume";
 
 export class RedisDeliveredMessage implements DeliveredMessage {
 	constructor(

@@ -4,7 +4,7 @@ import { RetryPolicy } from "../domain/retry-policy";
 import { Subscription } from "../domain/subscription";
 import { Topic } from "../domain/topic";
 import { DeliveredMessage } from "../ports/consumer";
-import { RecordingHandler } from "../test-support/recording-handler";
+import { RecordingHandler } from "../testing/recording-handler";
 import { LoggingProbe } from "./logging-probe";
 import { ProbeLogger } from "./probe-logger";
 

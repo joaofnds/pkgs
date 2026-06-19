@@ -9,10 +9,6 @@
 			"types": "./dist/index.d.ts",
 			"default": "./dist/index.js"
 		},
-		"./redis": {
-			"types": "./dist/redis.d.ts",
-			"default": "./dist/redis.js"
-		},
 		"./testing": {
 			"types": "./dist/testing.d.ts",
 			"default": "./dist/testing.js"
@@ -28,32 +24,11 @@
 		"prebuild": "rm -rf dist",
 		"build": "tsc --build",
 		"typecheck": "tsc -p tsconfig.test.json",
-		"pretest": "pnpm run typecheck && docker compose up -d",
-		"test": "vitest run",
-		"posttest": "docker compose down",
-		"bench": "docker compose up -d && NODE_OPTIONS=--expose-gc tsx benchmark/throughput.bench.ts; docker compose down",
-		"bench:profile": "docker compose up -d && tsx benchmark/profile.ts; docker compose down"
-	},
-	"peerDependencies": {
-		"@joaofnds/throughput": "^0.6.6",
-		"redis": "^6.0.0"
-	},
-	"peerDependenciesMeta": {
-		"@joaofnds/throughput": {
-			"optional": true
-		},
-		"redis": {
-			"optional": true
-		}
+		"pretest": "pnpm run typecheck",
+		"test": "vitest run"
 	},
 	"devDependencies": {
-		"@joaofnds/throughput": "workspace:^",
 		"@types/node": "^24.13.2",
-		"bullmq": "^5.78.1",
-		"ioredis": "^5.11.1",
-		"mitata": "^1.0.34",
-		"redis": "^6.0.0",
-		"tsx": "^4.19.2",
 		"typescript": "^6.0.3"
 	}
 }

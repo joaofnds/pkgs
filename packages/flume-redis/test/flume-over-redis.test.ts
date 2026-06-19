@@ -1,14 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	DeadLetter,
 	Flume,
 	JsonCodec,
 	RetryPolicy,
 	SystemClock,
-} from "../src/index";
-import { RedisStreamsBroker } from "../src/redis";
-import { RecordingHandler } from "../src/test-support/recording-handler";
-import { FakeProbe } from "../src/testing";
+} from "@joaofnds/flume";
+import { FakeProbe, RecordingHandler } from "@joaofnds/flume/testing";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { RedisStreamsBroker } from "../src/index";
 import { BrokerHarness } from "./support/harness";
 import { uniqueTopic, waitFor } from "./support/wait";
 

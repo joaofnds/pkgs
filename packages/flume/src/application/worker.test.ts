@@ -18,11 +18,11 @@ import {
 } from "../index";
 import { OrderProbe } from "../test-support/order-probe";
 import { RawBytesCodec } from "../test-support/raw-bytes-codec";
-import { RecordingHandler } from "../test-support/recording-handler";
 import { ThrowingProbe } from "../test-support/throwing-probe";
 import { FakeBroker } from "../testing/fake-broker";
 import { FakeClock } from "../testing/fake-clock";
 import { FakeProbe } from "../testing/fake-probe";
+import { RecordingHandler } from "../testing/recording-handler";
 
 const DEAD_LETTER = "user.created:dead:send-email";
 

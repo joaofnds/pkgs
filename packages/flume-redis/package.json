@@ -1,0 +1,39 @@
+{
+	"name": "@joaofnds/flume-redis",
+	"version": "0.0.0",
+	"license": "MIT",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"author": "joaofnds <joaofnds@joaofnds.com>",
+	"repository": {
+		"url": "https://github.com/joaofnds/pkgs.git",
+		"type": "git",
+		"directory": "packages/flume-redis"
+	},
+	"scripts": {
+		"prebuild": "rm -rf dist",
+		"build": "tsc --build",
+		"typecheck": "tsc -p tsconfig.test.json",
+		"pretest": "pnpm run typecheck && docker compose up -d",
+		"test": "vitest run",
+		"posttest": "docker compose down",
+		"bench": "docker compose up -d && NODE_OPTIONS=--expose-gc tsx benchmark/throughput.bench.ts; docker compose down",
+		"bench:profile": "docker compose up -d && tsx benchmark/profile.ts; docker compose down"
+	},
+	"dependencies": {
+		"@joaofnds/flume": "workspace:^",
+		"@joaofnds/throughput": "workspace:^"
+	},
+	"peerDependencies": {
+		"redis": "^6.0.0"
+	},
+	"devDependencies": {
+		"@types/node": "^24.13.2",
+		"bullmq": "^5.78.1",
+		"ioredis": "^5.11.1",
+		"mitata": "^1.0.34",
+		"redis": "^6.0.0",
+		"tsx": "^4.19.2",
+		"typescript": "^6.0.3"
+	}
+}

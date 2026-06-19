@@ -1,5 +1,4 @@
 import { setTimeout as sleep } from "node:timers/promises";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	DeliveredMessage,
 	DeliveryMode,
@@ -8,8 +7,9 @@ import {
 	StartFrom,
 	Subscription,
 	Topic,
-} from "../src/index";
-import { RedisStreamsBroker } from "../src/redis";
+} from "@joaofnds/flume";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { RedisStreamsBroker } from "../src/index";
 import { BrokerHarness } from "./support/harness";
 import { uniqueTopic, waitFor } from "./support/wait";
 

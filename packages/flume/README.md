@@ -29,14 +29,14 @@ the whole server for the script's duration. Under load that serializes every oth
 client; on managed Redis, `EVAL` is often throttled, priced per-command, or constrained
 in cluster mode. That bottleneck has forced a provider switch in production.
 
-The Redis Streams adapter uses only plain commands — `XADD`, `XREADGROUP`, `XACK`,
-`XAUTOCLAIM` — and **never `EVAL`**. Measured against a BullMQ baseline it runs at
-**~1.0 commands/msg and 0.00 Lua/msg**, versus BullMQ's ~32–37 commands/msg and ~2
-`EVAL`/msg. The no-scripting / portability win is the point; the throughput win
-(≈1.4–7× on every variant) is the supporting act.
+The Redis Streams adapter — [`@joaofnds/flume-redis`](../flume-redis) — uses only plain
+commands (`XADD`, `XREADGROUP`, `XACK`, `XAUTOCLAIM`) and **never `EVAL`**. Measured
+against a BullMQ baseline it runs at **~1.0 commands/msg and 0.00 Lua/msg**, versus
+BullMQ's ~32–37 commands/msg and ~2 `EVAL`/msg. The no-scripting / portability win is the
+point; the throughput win (≈1.4–7× on every variant) is the supporting act.
 
-The price Streams charge: no native delayed delivery, so retry timing is reclaim-driven
-and coarse rather than scheduled to the millisecond.
+The broker is a port: the core never imports it, so other backends can implement the
+same interface without touching the core.
 
 ## Install
 
@@ -46,11 +46,11 @@ Published to GitHub Packages under the `@joaofnds` scope.
 pnpm add @joaofnds/flume
 ```
 
-The core (`@joaofnds/flume`) has **zero runtime dependencies**. The Redis adapter
-(`@joaofnds/flume/redis`) needs two optional peers, pulled in only when you import it:
+The core (`@joaofnds/flume`) has **zero runtime dependencies**. For a Redis-backed
+broker, add [`@joaofnds/flume-redis`](../flume-redis):
 
 ```
-pnpm add redis @joaofnds/throughput
+pnpm add @joaofnds/flume-redis redis
 ```
 
 ## Entry points
@@ -58,17 +58,19 @@ pnpm add redis @joaofnds/throughput
 | Import | Contents |
 | --- | --- |
 | `@joaofnds/flume` | core — `Flume`, `Dispatcher`, `Worker`, domain types, `JsonCodec`, `SystemClock`, `LoggingProbe` |
-| `@joaofnds/flume/redis` | `RedisStreamsBroker` and its options/errors |
-| `@joaofnds/flume/testing` | `FakeBroker`, `FakeClock`, `FakeProbe` for unit tests with no Redis |
+| `@joaofnds/flume/testing` | `FakeBroker`, `FakeClock`, `FakeProbe`, `RecordingHandler` for unit tests with no Redis |
+| [`@joaofnds/flume-redis`](../flume-redis) | `RedisStreamsBroker` and its options/errors — a separate package |
 
 The split is physical: the core never imports an adapter, so a core-only consumer
-installs neither `redis` nor `@joaofnds/throughput`.
+installs neither `redis` nor `@joaofnds/throughput`. The Redis adapter and its
+integration tests live in their own package — see its README for setup, options, and
+dead-letter redrive.
 
-## Quick start (Redis)
+## Quick start
 
 ```ts
 import { Flume, JsonCodec, SystemClock, LoggingProbe } from "@joaofnds/flume";
-import { RedisStreamsBroker } from "@joaofnds/flume/redis";
+import { RedisStreamsBroker } from "@joaofnds/flume-redis";
 
 const broker = new RedisStreamsBroker({ redis: { url: "redis://localhost:6379" } });
 await broker.connect();
@@ -162,40 +164,8 @@ Pluggable seams, all injected into `Flume`:
   route it elsewhere); `FakeProbe` is a no-op for tests. A throwing probe can never make
   `emit` reject or block an ack.
 
-### Redis adapter options
-
-```ts
-new RedisStreamsBroker({
-  redis: { url: "redis://localhost:6379" },
-  consumerName: "billing-worker-1", // identity within a competing group (default {host}:{pid})
-  instanceId: "billing-worker-1",   // identity of a broadcast group     (default {host}:{pid})
-  readCount: 10,                    // batch size / in-flight concurrency per read
-  reclaim: { minIdleTime: 30000, count: 100, throughputThreshold: 1000 },
-  broadcast: { heartbeatInterval: 10000, heartbeatTtl: 30000 },
-  reaper: { interval: 30000, trim: false },
-});
-```
-
-In containerized fleets where pids collide (pid 1 per container) or hostnames are
-shared, **override both `consumerName` and `instanceId`** — otherwise broadcast
-degrades to competing and reclaim may steal a peer's in-flight work.
-
-`reaper.trim` is opt-in and off by default: live streams are never length-trimmed, since
-that would drop entries a slow group still needs.
-
-## Dead-letter redrive
-
-The Redis adapter can replay a dead-letter stream back onto its live topic. It is
-idempotent on the original message id, so re-running after a crash re-drives rather than
-drops.
-
-```ts
-const result = await broker.redriveDeadLetters({
-  topic: new Topic("order.placed"),
-  name: "billing:charge-card", // full namespace-folded subscription name
-});
-// { redriven: 4, skipped: 1 }
-```
+Broker-specific options (Redis connection, reclaim, broadcast, reaper, dead-letter
+redrive) are documented in [`@joaofnds/flume-redis`](../flume-redis).
 
 ## Producer / consumer split
 
@@ -224,7 +194,8 @@ const flume = new Flume({
 `FakeBroker` exposes two distinct drivers — `deliverFresh` (forces delivery count 1) and
 `redeliver` (forces count > 1) — because delivery count is authoritative only on the
 reclaim path. A fresh delivery is always attempt 1; the count is real only when a redelivery
-supplies it. The fake matches what the Redis adapter can actually honor.
+supplies it. The fake matches what the Redis adapter can actually honor. `RecordingHandler`
+is a ready-made `EventHandler` that captures the events it receives.
 
 ## License
 

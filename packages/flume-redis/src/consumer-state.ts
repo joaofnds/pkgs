@@ -1,5 +1,4 @@
-import { Topic } from "../../domain/topic";
-import { DeliveredMessage } from "../../ports/consumer";
+import { DeliveredMessage, Topic } from "@joaofnds/flume";
 import { AckBatch } from "./ack-batch";
 import { ReadClient } from "./clients";
 
