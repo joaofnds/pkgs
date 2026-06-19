@@ -21,7 +21,7 @@ export class NatsDeliveredMessage implements DeliveredMessage {
 	}
 
 	async ack(): Promise<void> {
-		await this.msg.ackAck();
+		this.msg.ack();
 	}
 
 	async nack(): Promise<void> {
