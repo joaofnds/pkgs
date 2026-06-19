@@ -1,16 +1,18 @@
-// Serious throughput/latency/ops benchmark: Flume (Redis Streams, no Lua) vs a
-// BullMQ baseline, over a full parameter matrix, measured with mitata.
+// Serious throughput/latency/ops benchmark over a full parameter matrix, with
+// mitata. Compares Flume over Redis Streams (no Lua), Flume over NATS JetStream,
+// and a BullMQ baseline.
 //
-// For each variant it reports, all on the same Redis (port 6381):
-//   - throughput  — msg/s from mitata's median op time (warmup + multiple samples)
+// For each variant it reports:
+//   - throughput  — msg/s from mitata's median op time (warmup + multiple samples),
+//                   all three systems side by side
 //   - latency     — per-message dispatch->process p50/p95/p99 (ms), under burst load
-//   - redis ops   — data-plane commands per message + Lua (EVAL/EVALSHA) calls,
-//                   from CONFIG RESETSTAT + INFO commandstats (Flume's no-Lua edge)
+//   - redis ops   — data-plane commands per message + Lua (EVAL/EVALSHA) calls, from
+//                   CONFIG RESETSTAT + INFO commandstats. Flume-Redis vs BullMQ only —
+//                   it's a Redis-server metric; NATS has no equivalent here.
 //
-// BullMQ has no native broadcast, so broadcast is a Flume-only sub-sweep
-// (competing vs broadcast) to expose the broadcast code path's overhead.
+// BullMQ has no native broadcast, so broadcast is a Flume-only sub-sweep.
 //
-// Out of the default test path: `pnpm --filter @joaofnds/flume bench`.
+// Out of the default test path: `pnpm --filter @joaofnds/flume-bench bench`.
 import { setTimeout as sleep } from "node:timers/promises";
 import { bench, measure, run, summary } from "mitata";
 import { createClient } from "redis";
@@ -25,10 +27,12 @@ import {
 	type BenchSystem,
 	BullSystem,
 	FlumeSystem,
+	NatsSystem,
 	type Variant,
 } from "./bench-systems";
 
 const REDIS_URL = "redis://localhost:6381";
+const NATS_URL = "nats://localhost:4223";
 const CONNECTION = { host: "localhost", port: 6381 };
 
 // BENCH_FAST shrinks the matrix to one representative competing variant and skips
@@ -167,14 +171,16 @@ function printThroughput(results: VariantResult[]): void {
 	for (const key of orderedKeys(results)) {
 		const flume = pick(results, key, "flume");
 		const bull = pick(results, key, "bullmq");
-		if (flume === undefined || bull === undefined) continue;
+		const nats = pick(results, key, "nats");
+		if (flume === undefined || bull === undefined || nats === undefined)
+			continue;
 		rows.push([
 			key,
 			num(flume.msgPerSec),
 			num(bull.msgPerSec),
+			num(nats.msgPerSec),
 			`${fixed(flume.msgPerSec / bull.msgPerSec)}x`,
-			fixed(flume.opP99Ms, 1),
-			fixed(bull.opP99Ms, 1),
+			`${fixed(flume.msgPerSec / nats.msgPerSec)}x`,
 		]);
 	}
 	out("\n## THROUGHPUT — competing (msg/s, higher is better)\n");
@@ -184,9 +190,9 @@ function printThroughput(results: VariantResult[]): void {
 				"payload/count/conc",
 				"flume",
 				"bullmq",
-				"flume×",
-				"f p99 op(ms)",
-				"b p99 op(ms)",
+				"nats",
+				"flume/bullmq",
+				"flume/nats",
 			],
 			rows,
 		),
@@ -198,7 +204,9 @@ function printLatency(results: VariantResult[]): void {
 	for (const key of orderedKeys(results)) {
 		const flume = pick(results, key, "flume");
 		const bull = pick(results, key, "bullmq");
-		if (flume === undefined || bull === undefined) continue;
+		const nats = pick(results, key, "nats");
+		if (flume === undefined || bull === undefined || nats === undefined)
+			continue;
 		rows.push([
 			key,
 			fixed(flume.latP50),
@@ -207,6 +215,9 @@ function printLatency(results: VariantResult[]): void {
 			fixed(bull.latP50),
 			fixed(bull.latP95),
 			fixed(bull.latP99),
+			fixed(nats.latP50),
+			fixed(nats.latP95),
+			fixed(nats.latP99),
 		]);
 	}
 	out(
@@ -222,6 +233,9 @@ function printLatency(results: VariantResult[]): void {
 				"b p50",
 				"b p95",
 				"b p99",
+				"n p50",
+				"n p95",
+				"n p99",
 			],
 			rows,
 		),
@@ -282,6 +296,7 @@ async function warmup(): Promise<void> {
 	const systems: BenchSystem[] = [
 		new FlumeSystem(REDIS_URL, MAX_PAYLOAD),
 		new BullSystem(CONNECTION),
+		new NatsSystem(NATS_URL, MAX_PAYLOAD),
 	];
 	const rounds = FAST ? 1 : 3;
 	for (const system of systems) {
@@ -340,6 +355,13 @@ async function main(): Promise<void> {
 		);
 		results.push(
 			await measureSystem(new BullSystem(CONNECTION), variant, maint),
+		);
+		results.push(
+			await measureSystem(
+				new NatsSystem(NATS_URL, MAX_PAYLOAD),
+				variant,
+				maint,
+			),
 		);
 	}
 

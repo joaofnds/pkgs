@@ -3,3 +3,8 @@ services:
     image: redis:8-alpine
     ports:
       - 6381:6379
+  nats:
+    image: nats:2.10-alpine
+    command: ["-js"]
+    ports:
+      - 4223:4222

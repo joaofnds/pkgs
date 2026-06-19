@@ -9,8 +9,10 @@ import {
 	Subscription,
 	Topic,
 } from "@joaofnds/flume";
+import { NatsStreamsBroker } from "@joaofnds/flume-nats";
 import { RedisStreamsBroker } from "@joaofnds/flume-redis";
 import { Worker as BullWorker, Job, Queue } from "bullmq";
+import { connect, NatsConnection } from "nats";
 import { createClient } from "redis";
 
 export interface Variant {
@@ -202,5 +204,94 @@ export class BullSystem implements BenchSystem {
 		await this.worker.close();
 		await this.queue.obliterate({ force: true }).catch(() => {});
 		await this.queue.close();
+	}
+}
+
+const NATS_STREAM = "flume";
+
+export class NatsSystem implements BenchSystem {
+	readonly name = "nats";
+	private broker!: NatsStreamsBroker;
+	private nc!: NatsConnection;
+	private subject!: string;
+	private topic!: Topic;
+	private variant!: Variant;
+	private readonly shared: Buffer;
+	private processed = 0;
+	private collect = false;
+	private latencies: number[] = [];
+	private done = Promise.withResolvers<void>();
+
+	constructor(
+		private readonly servers: string,
+		payloadCeiling: number,
+	) {
+		this.shared = Buffer.alloc(Math.max(payloadCeiling, 8), 1);
+	}
+
+	async setup(variant: Variant): Promise<void> {
+		this.variant = variant;
+		this.broker = new NatsStreamsBroker({
+			nats: { servers: this.servers },
+			readCount: variant.concurrency,
+			// Park ack_wait far beyond the run so no redelivery fires mid-measurement.
+			ackWait: HOUR,
+		});
+		await this.broker.connect();
+		this.nc = await connect({ servers: this.servers });
+		this.topic = new Topic(`bench.nats.${topicSeq++}`);
+		this.subject = `flume.${this.topic.name}`;
+		const sub = new Subscription({
+			topic: this.topic,
+			name: "b",
+			handler: { async handle() {} },
+			retry: new RetryPolicy({ maxAttempts: 1 }),
+			delivery:
+				variant.mode === "broadcast"
+					? DeliveryMode.Broadcast
+					: DeliveryMode.Competing,
+			startFrom: "new",
+		});
+		await this.broker.consume(sub, async (msg) => {
+			if (this.collect)
+				this.latencies.push(performance.now() - readStamp(msg.body));
+			await msg.ack();
+			if (++this.processed === this.variant.count) this.done.resolve();
+		});
+	}
+
+	async runBatch(collectLatency: boolean): Promise<void> {
+		this.collect = collectLatency;
+		this.processed = 0;
+		this.latencies = [];
+		this.done = Promise.withResolvers<void>();
+		const { count, payload } = this.variant;
+		await Promise.all(
+			Array.from({ length: count }, () =>
+				this.broker.publish(
+					this.topic,
+					collectLatency ? stamped(payload) : this.shared,
+				),
+			),
+		);
+		await this.done.promise;
+		// Bound the stream like the Flume system trims its Redis stream — acked
+		// JetStream messages persist until purged, so without this the stream grows
+		// across mitata iterations. Bench hygiene, not adapter behavior.
+		const jsm = await this.nc.jetstreamManager();
+		await jsm.streams
+			.purge(NATS_STREAM, { filter: this.subject, keep: 1000 })
+			.catch(() => {});
+	}
+
+	takeLatencies(): number[] {
+		const taken = this.latencies;
+		this.latencies = [];
+		return taken;
+	}
+
+	async teardown(): Promise<void> {
+		await this.broker.close();
+		await this.nc.close();
 	}
 }

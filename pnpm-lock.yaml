@@ -69,6 +69,9 @@ importers:
       '@joaofnds/flume':
         specifier: workspace:^
         version: link:../flume
+      '@joaofnds/flume-nats':
+        specifier: workspace:^
+        version: link:../flume-nats
       '@joaofnds/flume-redis':
         specifier: workspace:^
         version: link:../flume-redis
@@ -87,6 +90,9 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+      nats:
+        specifier: ^2.29.3
+        version: 2.29.3
       redis:
         specifier: ^6.0.0
         version: 6.0.0

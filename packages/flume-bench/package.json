@@ -16,12 +16,14 @@
 	},
 	"devDependencies": {
 		"@joaofnds/flume": "workspace:^",
+		"@joaofnds/flume-nats": "workspace:^",
 		"@joaofnds/flume-redis": "workspace:^",
 		"@joaofnds/throughput": "workspace:^",
 		"@types/node": "^24.13.2",
 		"bullmq": "^5.78.1",
 		"ioredis": "^5.11.1",
 		"mitata": "^1.0.34",
+		"nats": "^2.29.3",
 		"redis": "^6.0.0",
 		"tsx": "^4.19.2",
 		"typescript": "^6.0.3"
