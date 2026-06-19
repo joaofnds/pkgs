@@ -2,7 +2,7 @@
 
 export function percentile(values: number[], q: number): number {
 	if (values.length === 0) return Number.NaN;
-	const sorted = [...values].sort((a, b) => a - b);
+	const sorted = values.toSorted((a, b) => a - b);
 	const rank = q * (sorted.length - 1);
 	const lo = Math.floor(rank);
 	const hi = Math.ceil(rank);
