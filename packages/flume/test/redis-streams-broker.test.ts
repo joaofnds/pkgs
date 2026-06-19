@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	DeliveredMessage,
@@ -196,7 +197,7 @@ describe("RedisStreamsBroker", () => {
 			await gated.broker.publish(new Topic(topic), encode("stuck"));
 			await waitFor(() => deliveries.messages.length === 1);
 
-			await new Promise((resolve) => setTimeout(resolve, 300));
+			await sleep(300);
 			expect(deliveries.messages).toHaveLength(1);
 		} finally {
 			await gated.stop();

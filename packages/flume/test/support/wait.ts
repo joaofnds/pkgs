@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { setTimeout as sleep } from "node:timers/promises";
 
 export async function waitFor(
 	predicate: () => boolean | Promise<boolean>,
@@ -10,15 +11,11 @@ export async function waitFor(
 
 	while (Date.now() < deadline) {
 		if (await predicate()) return;
-		await delay(interval);
+		await sleep(interval);
 	}
 	if (await predicate()) return;
 
 	throw new Error(options.message ?? `condition not met within ${timeout}ms`);
-}
-
-function delay(ms: number): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 const RUN_ID = randomUUID().slice(0, 8);

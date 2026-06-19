@@ -11,6 +11,7 @@
 // (competing vs broadcast) to expose the broadcast code path's overhead.
 //
 // Out of the default test path: `pnpm --filter @joaofnds/flume bench`.
+import { setTimeout as sleep } from "node:timers/promises";
 import { bench, measure, run, summary } from "mitata";
 import { createClient } from "redis";
 import {
@@ -77,7 +78,7 @@ async function connectMaint() {
 			return client;
 		} catch {
 			await client.close().catch(() => {});
-			await new Promise((resolve) => setTimeout(resolve, 200));
+			await sleep(200);
 		}
 	}
 	throw new Error("redis not reachable on 6381");

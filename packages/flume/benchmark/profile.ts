@@ -6,6 +6,7 @@
 // reports client event-loop utilization + process CPU against Redis server CPU.
 //   pnpm --filter @joaofnds/flume bench:profile
 import { performance } from "node:perf_hooks";
+import { setTimeout as sleep } from "node:timers/promises";
 import { createClient } from "redis";
 import { fixed, num, table } from "./bench-report";
 import { FlumeSystem, type Variant } from "./bench-systems";
@@ -34,7 +35,7 @@ async function connectMaint(): Promise<MaintClient> {
 			return client;
 		} catch {
 			await client.close().catch(() => {});
-			await new Promise((resolve) => setTimeout(resolve, 200));
+			await sleep(200);
 		}
 	}
 	throw new Error("redis not reachable on 6381");

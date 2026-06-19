@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from "node:timers/promises";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	DeliveredMessage,
@@ -131,7 +132,7 @@ describe("broadcast delivery + group reaper", () => {
 			new Deliveries().deliver,
 		);
 
-		await new Promise((resolve) => setTimeout(resolve, 200));
+		await sleep(200);
 		expect(await live.groupNames(topic)).toContain("flume:cache:inst-a");
 		expect(await live.keyExists("flume:hb:flume:cache:inst-a")).toBe(true);
 	});
