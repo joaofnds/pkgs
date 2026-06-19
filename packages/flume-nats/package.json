@@ -1,0 +1,33 @@
+{
+	"name": "@joaofnds/flume-nats",
+	"version": "0.0.0",
+	"license": "MIT",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"author": "joaofnds <joaofnds@joaofnds.com>",
+	"repository": {
+		"url": "https://github.com/joaofnds/pkgs.git",
+		"type": "git",
+		"directory": "packages/flume-nats"
+	},
+	"scripts": {
+		"prebuild": "rm -rf dist",
+		"build": "tsc --build",
+		"typecheck": "tsc -p tsconfig.test.json",
+		"pretest": "pnpm run typecheck && docker compose up -d",
+		"test": "vitest run",
+		"posttest": "docker compose down"
+	},
+	"dependencies": {
+		"@joaofnds/flume": "workspace:^"
+	},
+	"peerDependencies": {
+		"nats": "^2.29.0"
+	},
+	"devDependencies": {
+		"@joaofnds/flume-tck": "workspace:^",
+		"@types/node": "^24.13.2",
+		"nats": "^2.29.3",
+		"typescript": "^6.0.3"
+	}
+}

@@ -1,0 +1,6 @@
+services:
+  nats:
+    image: nats:2.10-alpine
+    command: ["-js"]
+    ports:
+      - 4223:4222
