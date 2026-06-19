@@ -27,14 +27,6 @@ export interface BenchSystem {
 
 const HOUR = 3_600_000;
 
-function deferred(): { promise: Promise<void>; resolve: () => void } {
-	let resolve!: () => void;
-	const promise = new Promise<void>((r) => {
-		resolve = r;
-	});
-	return { promise, resolve };
-}
-
 function stamped(size: number): Buffer {
 	const buf = Buffer.alloc(Math.max(size, 8), 1);
 	buf.writeDoubleLE(performance.now(), 0);
@@ -60,7 +52,7 @@ export class FlumeSystem implements BenchSystem {
 	private processed = 0;
 	private collect = false;
 	private latencies: number[] = [];
-	private done = deferred();
+	private done = Promise.withResolvers<void>();
 
 	constructor(
 		private readonly url: string,
@@ -113,7 +105,7 @@ export class FlumeSystem implements BenchSystem {
 		this.collect = collectLatency;
 		this.processed = 0;
 		this.latencies = [];
-		this.done = deferred();
+		this.done = Promise.withResolvers<void>();
 		const { count, payload } = this.variant;
 		await Promise.all(
 			Array.from({ length: count }, () =>
@@ -156,7 +148,7 @@ export class BullSystem implements BenchSystem {
 	private processed = 0;
 	private collect = false;
 	private latencies: number[] = [];
-	private done = deferred();
+	private done = Promise.withResolvers<void>();
 
 	constructor(private readonly connection: { host: string; port: number }) {}
 
@@ -184,7 +176,7 @@ export class BullSystem implements BenchSystem {
 		this.collect = collectLatency;
 		this.processed = 0;
 		this.latencies = [];
-		this.done = deferred();
+		this.done = Promise.withResolvers<void>();
 		const pad = "x".repeat(this.variant.payload);
 		const jobs = Array.from({ length: this.variant.count }, () => ({
 			name: "job",
