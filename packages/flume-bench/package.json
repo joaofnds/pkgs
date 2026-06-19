@@ -12,6 +12,7 @@
 	"scripts": {
 		"typecheck": "tsc --noEmit -p tsconfig.json",
 		"bench": "docker compose up -d && NODE_OPTIONS=--expose-gc tsx benchmark/throughput.bench.ts; docker compose down",
+		"bench:sat": "docker compose up -d && tsx benchmark/saturation.ts; docker compose down",
 		"bench:profile": "docker compose up -d && tsx benchmark/profile.ts; docker compose down"
 	},
 	"devDependencies": {

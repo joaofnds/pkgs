@@ -20,6 +20,35 @@ concurrency) it reports, all on the same backend:
 `pnpm --filter @joaofnds/flume-bench bench:profile` runs the single-system event-loop /
 Redis-CPU profiler instead.
 
+## Saturation harness
+
+```
+pnpm --filter @joaofnds/flume-bench bench:sat
+```
+
+`benchmark/saturation.ts` answers a different question than the matrix above: **how far
+can Flume push each backend, and who is the bottleneck at the ceiling?** A single Node
+event loop tops out long before a multi-threaded server does, so this harness drives load
+from **worker threads** (one producer or one consumer per thread), ramps the thread count
+`1 → cores`, and at each step reports sustained throughput alongside **client CPU**
+(`process.cpuUsage`, process-wide so it covers the workers) and **backend CPU**
+(`docker stats` on the container). It sweeps two topologies per system:
+
+- **independent** — each producer/consumer pair on its own topic/stream/group (spreads
+  load across shards/cores).
+- **shared** — all load on one topic + one competing group (single-stream contention).
+
+The `bound by` column reads the knee: `backend cpu` (server near its core ceiling —
+redis is one thread, nats many), `client cpu` (Node near the host's cores), or
+`unsaturated` (neither — the limit is serialization/contention, e.g. NATS's single
+catch-all stream). `SAT_FAST=1` runs a 2-step ramp for a quick check. Backends are
+**redis** (6381) and **nats** (4223); BullMQ is dropped here — it's a comparative-matrix
+baseline, not a saturation target.
+
+A full run of both harnesses, plus a one-off Dragonfly-vs-Redis comparison and the NATS
+adapter optimization that preceded this, is written up in [`REPORT.md`](./REPORT.md) — the
+saturation sweep is expensive (it pins every core), so all numbers are captured there.
+
 ## The load-bearing result
 
 The **ops table**, not the raw msg/s: Flume over Redis Streams at **~1.0 commands/msg
