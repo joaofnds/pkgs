@@ -16,9 +16,7 @@
 		"typecheck": "tsc -p tsconfig.test.json",
 		"pretest": "pnpm run typecheck && docker compose up -d",
 		"test": "vitest run",
-		"posttest": "docker compose down",
-		"bench": "docker compose up -d && NODE_OPTIONS=--expose-gc tsx benchmark/throughput.bench.ts; docker compose down",
-		"bench:profile": "docker compose up -d && tsx benchmark/profile.ts; docker compose down"
+		"posttest": "docker compose down"
 	},
 	"dependencies": {
 		"@joaofnds/flume": "workspace:^",
@@ -30,11 +28,7 @@
 	"devDependencies": {
 		"@joaofnds/flume-tck": "workspace:^",
 		"@types/node": "^24.13.2",
-		"bullmq": "^5.78.1",
-		"ioredis": "^5.11.1",
-		"mitata": "^1.0.34",
 		"redis": "^6.0.0",
-		"tsx": "^4.19.2",
 		"typescript": "^6.0.3"
 	}
 }

@@ -9,9 +9,9 @@ import {
 	Subscription,
 	Topic,
 } from "@joaofnds/flume";
+import { RedisStreamsBroker } from "@joaofnds/flume-redis";
 import { Worker as BullWorker, Job, Queue } from "bullmq";
 import { createClient } from "redis";
-import { RedisStreamsBroker } from "../src/index";
 
 export interface Variant {
 	readonly count: number;

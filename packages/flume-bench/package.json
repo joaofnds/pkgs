@@ -1,0 +1,29 @@
+{
+	"name": "@joaofnds/flume-bench",
+	"version": "0.0.0",
+	"private": true,
+	"license": "MIT",
+	"author": "joaofnds <joaofnds@joaofnds.com>",
+	"repository": {
+		"url": "https://github.com/joaofnds/pkgs.git",
+		"type": "git",
+		"directory": "packages/flume-bench"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit -p tsconfig.json",
+		"bench": "docker compose up -d && NODE_OPTIONS=--expose-gc tsx benchmark/throughput.bench.ts; docker compose down",
+		"bench:profile": "docker compose up -d && tsx benchmark/profile.ts; docker compose down"
+	},
+	"devDependencies": {
+		"@joaofnds/flume": "workspace:^",
+		"@joaofnds/flume-redis": "workspace:^",
+		"@joaofnds/throughput": "workspace:^",
+		"@types/node": "^24.13.2",
+		"bullmq": "^5.78.1",
+		"ioredis": "^5.11.1",
+		"mitata": "^1.0.34",
+		"redis": "^6.0.0",
+		"tsx": "^4.19.2",
+		"typescript": "^6.0.3"
+	}
+}

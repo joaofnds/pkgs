@@ -64,18 +64,17 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
-  packages/flume-redis:
-    dependencies:
+  packages/flume-bench:
+    devDependencies:
       '@joaofnds/flume':
         specifier: workspace:^
         version: link:../flume
+      '@joaofnds/flume-redis':
+        specifier: workspace:^
+        version: link:../flume-redis
       '@joaofnds/throughput':
         specifier: workspace:^
         version: link:../throughput
-    devDependencies:
-      '@joaofnds/flume-tck':
-        specifier: workspace:^
-        version: link:../flume-tck
       '@types/node':
         specifier: ^24.13.2
         version: 24.13.2
@@ -94,6 +93,28 @@ importers:
       tsx:
         specifier: ^4.19.2
         version: 4.22.4
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+
+  packages/flume-redis:
+    dependencies:
+      '@joaofnds/flume':
+        specifier: workspace:^
+        version: link:../flume
+      '@joaofnds/throughput':
+        specifier: workspace:^
+        version: link:../throughput
+    devDependencies:
+      '@joaofnds/flume-tck':
+        specifier: workspace:^
+        version: link:../flume-tck
+      '@types/node':
+        specifier: ^24.13.2
+        version: 24.13.2
+      redis:
+        specifier: ^6.0.0
+        version: 6.0.0
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
