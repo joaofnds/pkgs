@@ -29,6 +29,7 @@
 		},
 		"version": {
 			"conventionalCommits": true,
+			"fallbackCurrentVersionResolver": "disk",
 			"currentVersionResolverMetadata": {
 				"registry": "https://npm.pkg.github.com"
 			}
