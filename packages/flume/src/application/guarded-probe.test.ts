@@ -13,6 +13,7 @@ import { RecordingHandler } from "../testing/recording-handler";
 
 describe(GuardedProbe, () => {
 	const topic = new Topic("user.created");
+	const timing = { handlerDurationMs: 5, endToEndLatencyMs: 12 };
 	const sub = new Subscription({
 		topic,
 		name: "send-email",
@@ -38,7 +39,7 @@ describe(GuardedProbe, () => {
 		const msg = await message();
 
 		probe.dispatched(topic);
-		probe.processed(sub, msg);
+		probe.processed(sub, msg, timing);
 		probe.failed(sub, msg, new Error("boom"));
 		probe.deadLettered(sub, msg);
 
@@ -53,7 +54,7 @@ describe(GuardedProbe, () => {
 		const msg = await message();
 
 		expect(() => throwing.dispatched(topic)).not.toThrow();
-		expect(() => throwing.processed(sub, msg)).not.toThrow();
+		expect(() => throwing.processed(sub, msg, timing)).not.toThrow();
 		expect(() => throwing.failed(sub, msg, new Error("boom"))).not.toThrow();
 		expect(() => throwing.deadLettered(sub, msg)).not.toThrow();
 	});

@@ -4,6 +4,9 @@ export class ThrowingProbe implements Probe {
 	dispatched(): void {
 		throw new Error("probe boom");
 	}
+	dispatchFailed(): void {
+		throw new Error("probe boom");
+	}
 	processed(): void {
 		throw new Error("probe boom");
 	}

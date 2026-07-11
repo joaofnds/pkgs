@@ -2,6 +2,7 @@ import { Subscription } from "../domain/subscription";
 import { Topic } from "../domain/topic";
 import { DeliveredMessage } from "../ports/consumer";
 import { Probe } from "../ports/probe";
+import { ProcessingTiming } from "../ports/processing-timing";
 
 export class GuardedProbe implements Probe {
 	constructor(private readonly delegate: Probe) {}
@@ -10,8 +11,16 @@ export class GuardedProbe implements Probe {
 		this.guard(() => this.delegate.dispatched(topic));
 	}
 
-	processed(sub: Subscription, msg: DeliveredMessage): void {
-		this.guard(() => this.delegate.processed(sub, msg));
+	dispatchFailed(topic: Topic, error: unknown): void {
+		this.guard(() => this.delegate.dispatchFailed(topic, error));
+	}
+
+	processed(
+		sub: Subscription,
+		msg: DeliveredMessage,
+		timing: ProcessingTiming,
+	): void {
+		this.guard(() => this.delegate.processed(sub, msg, timing));
 	}
 
 	failed(sub: Subscription, msg: DeliveredMessage, error: unknown): void {

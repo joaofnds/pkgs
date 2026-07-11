@@ -1,5 +1,7 @@
+import { Throughput } from "@joaofnds/throughput";
 import { createClient, RESP_TYPES } from "redis";
 import {
+	BrokerProbe,
 	RedisStreamsBroker,
 	RedisStreamsBrokerOptions,
 	ResolvedOptions,
@@ -28,16 +30,22 @@ export class BrokerHarness {
 
 	static async start(
 		overrides: Partial<RedisStreamsBrokerOptions> = {},
+		probe?: BrokerProbe,
+		throughput?: Throughput,
 	): Promise<BrokerHarness> {
 		const maint = maintClient();
 		await maint.connect();
 
-		const broker = new RedisStreamsBroker({
-			redis: { url: REDIS_URL },
-			readTimeout: 100,
-			reclaim: TEST_RECLAIM,
-			...overrides,
-		});
+		const broker = new RedisStreamsBroker(
+			{
+				redis: { url: REDIS_URL },
+				readTimeout: 100,
+				reclaim: TEST_RECLAIM,
+				...overrides,
+			},
+			probe,
+			throughput,
+		);
 		await broker.connect();
 		return new BrokerHarness(broker, maint);
 	}
@@ -58,6 +66,10 @@ export class BrokerHarness {
 
 	async streamLength(stream: string): Promise<number> {
 		return this.maint.xLen(stream);
+	}
+
+	async destroyConsumerGroup(stream: string, group: string): Promise<void> {
+		await this.maint.xGroupDestroy(stream, group);
 	}
 
 	async groupNames(stream: string): Promise<string[]> {
@@ -87,6 +99,12 @@ export class BrokerHarness {
 	async registryMembers(stream: string): Promise<string[]> {
 		const members = await this.maint.sMembers(`flume:bcast:${stream}`);
 		return members.map((member) => String(member));
+	}
+
+	async corruptBroadcastRegistry(stream: string): Promise<void> {
+		const key = `flume:bcast:${stream}`;
+		await this.maint.del(key);
+		await this.maint.set(key, "not-a-set");
 	}
 
 	async entries(

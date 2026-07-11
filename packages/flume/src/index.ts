@@ -23,6 +23,7 @@ export * from "./ports/clock";
 export * from "./ports/codec";
 export * from "./ports/consumer";
 export * from "./ports/probe";
+export * from "./ports/processing-timing";
 export * from "./ports/publisher";
 export * from "./probe/console-probe-logger";
 export * from "./probe/logging-probe";

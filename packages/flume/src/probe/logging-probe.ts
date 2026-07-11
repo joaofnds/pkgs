@@ -2,6 +2,7 @@ import { Subscription } from "../domain/subscription";
 import { Topic } from "../domain/topic";
 import { DeliveredMessage } from "../ports/consumer";
 import { Probe } from "../ports/probe";
+import { ProcessingTiming } from "../ports/processing-timing";
 import { ConsoleProbeLogger } from "./console-probe-logger";
 import { ProbeLogger } from "./probe-logger";
 
@@ -14,8 +15,23 @@ export class LoggingProbe implements Probe {
 		this.logger.info("flume.dispatched", { topic: topic.name });
 	}
 
-	processed(sub: Subscription, msg: DeliveredMessage): void {
-		this.logger.info("flume.processed", this.context(sub, msg));
+	dispatchFailed(topic: Topic, error: unknown): void {
+		this.logger.error("flume.dispatch_failed", {
+			topic: topic.name,
+			error: this.reason(error),
+		});
+	}
+
+	processed(
+		sub: Subscription,
+		msg: DeliveredMessage,
+		timing: ProcessingTiming,
+	): void {
+		this.logger.info("flume.processed", {
+			...this.context(sub, msg),
+			handlerDurationMs: timing.handlerDurationMs,
+			endToEndLatencyMs: timing.endToEndLatencyMs,
+		});
 	}
 
 	failed(sub: Subscription, msg: DeliveredMessage, error: unknown): void {

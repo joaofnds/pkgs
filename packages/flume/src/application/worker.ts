@@ -2,6 +2,7 @@ import { DeadLetter } from "../domain/dead-letter";
 import { Event } from "../domain/event";
 import { Subscription } from "../domain/subscription";
 import { Topic } from "../domain/topic";
+import { Clock } from "../ports/clock";
 import { Codec } from "../ports/codec";
 import { Consumer, DeliveredMessage, RunningConsumer } from "../ports/consumer";
 import { Probe } from "../ports/probe";
@@ -21,6 +22,7 @@ export class Worker {
 		private readonly consumer: Consumer,
 		private readonly publisher: Publisher,
 		private readonly codec: Codec,
+		private readonly clock: Clock,
 		probe: Probe,
 	) {
 		this.probe = new GuardedProbe(probe);
@@ -80,9 +82,14 @@ export class Worker {
 				deliveryCount: msg.deliveryCount,
 				dispatchedAt: envelope.dispatchedAt,
 			});
+			const start = this.clock.now();
 			await sub.handler.handle(event);
+			const end = this.clock.now();
 			await msg.ack();
-			this.probe.processed(sub, msg);
+			this.probe.processed(sub, msg, {
+				handlerDurationMs: end.getTime() - start.getTime(),
+				endToEndLatencyMs: end.getTime() - envelope.dispatchedAt.getTime(),
+			});
 		} catch (error) {
 			await msg.nack();
 			this.probe.failed(sub, msg, error);

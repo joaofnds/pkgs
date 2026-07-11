@@ -30,18 +30,20 @@ describe(Worker, () => {
 	const topic = new Topic("user.created");
 	let broker: FakeBroker;
 	let codec: JsonCodec;
+	let clock: FakeClock;
 	let probe: FakeProbe;
 	let handler: RecordingHandler;
 
 	beforeEach(() => {
 		broker = new FakeBroker();
 		codec = new JsonCodec();
+		clock = new FakeClock();
 		probe = new FakeProbe();
 		handler = new RecordingHandler();
 	});
 
 	function worker(withProbe: Probe = probe): Worker {
-		return new Worker(broker, broker, codec, withProbe);
+		return new Worker(broker, broker, codec, clock, withProbe);
 	}
 
 	function subscription(
@@ -119,6 +121,30 @@ describe(Worker, () => {
 		expect(msg.acked).toBe(true);
 		expect(msg.nacked).toBe(false);
 		expect(probe.processedCalls).toHaveLength(1);
+	});
+
+	it("reports handler duration and end-to-end latency on a processed message", async () => {
+		clock.set(new Date(1500));
+		const timed: EventHandler = {
+			async handle() {
+				clock.advance(30);
+			},
+		};
+		const sub = subscription({ handler: timed });
+		const w = worker();
+		w.register(sub);
+		await w.start();
+		const body = new Envelope({
+			dispatchedAt: new Date(1000),
+			payload: codec.encode({ x: 1 }),
+		}).toBytes();
+
+		await broker.deliverFresh(sub, { id: "1", body });
+
+		expect(probe.processedCalls[0].timing).toEqual({
+			handlerDurationMs: 30,
+			endToEndLatencyMs: 530,
+		});
 	});
 
 	it("builds the event from broker id/count and envelope dispatchedAt", async () => {
@@ -384,7 +410,7 @@ describe(Worker, () => {
 		const rawCodec = new RawBytesCodec();
 		const raw = new Uint8Array([0xff, 0xfe, 0x00, 0x10, 0x7f]);
 		const sub = subscription();
-		const w = new Worker(broker, broker, rawCodec, probe);
+		const w = new Worker(broker, broker, rawCodec, clock, probe);
 		w.register(sub);
 		await w.start();
 		const body = new Envelope({

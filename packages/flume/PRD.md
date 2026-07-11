@@ -619,16 +619,63 @@ broker adapter, but the contract the core guarantees:
 
 ## 11. Observability
 
-A `Probe` port declares business-relevant events: `dispatched`, `processed`,
-`failed`, `deadLettered`. Production wiring emits metrics/logs; tests use a
-no-op/recording fake. Keeps observability decoupled from the processing logic.
+A core `Probe` port declares business-relevant events: `dispatched`,
+`dispatchFailed`, `processed` (carrying a `ProcessingTiming` — handler duration +
+dispatch→process latency), `failed`, and `deadLettered`. Production wiring emits
+metrics/logs (`LoggingProbe`); tests use a no-op/recording fake. Keeps
+observability decoupled from the processing logic.
+
+The **adapter** operational plane is a *separate*, adapter-owned `BrokerProbe`
+port (one per adapter — Redis and NATS each have their own), so Redis/NATS
+mechanics never leak through the core port. The core `Probe` reports domain
+events; the `BrokerProbe` reports infrastructure events (connection lifecycle,
+reclaim/reaper counts and failures, redrive results, delivery failures).
+Saturation **gauges** are an on-demand *query* (`RedisStreamsBroker.sampleSaturation()`),
+not a probe push — gauges are pull-shaped and a sampling timer would put
+continuous Redis load on the system even when unobserved (see §11.1).
 
 **Best-effort, never load-bearing.** Probe implementations must not throw, and
 the core guards every probe call (wraps it, swallows errors) so observability can
 never change messaging behavior — a thrown probe must not make `dispatch` reject
-after a successful publish, nor prevent an `ack`/`nack`. Broker side-effects
-always complete before the probe call, and the probe call is always last in its
-branch (§5).
+after a successful publish, nor prevent an `ack`/`nack`. Each adapter applies the
+same guard to its `BrokerProbe` (`GuardedBrokerProbe`). Broker side-effects always
+complete before the probe call, and the probe call is always last in its branch (§5).
+
+### 11.1 Coverage status (audited 2026-06-23)
+
+The five gaps from the prior audit are now closed. Golden signals (latency, errors,
+traffic, saturation) plus queue-specific signals (backlog depth, pending, lag,
+reclaim/reaper health) are observable:
+
+1. **Swallowed adapter failures — surfaced.** `flume-redis`'s `reclaim()`/`reap()`/
+   `heartbeat()` timers route rejections to `BrokerProbe.reclaimFailed`/`reapFailed`/
+   `heartbeatFailed` (no more `.catch(() => {})`). `flume-nats`'s `handle()` routes
+   delivery failures to `BrokerProbe.deliveryFailed`; `drain()` stays silent (it only
+   fires on expected shutdown teardown). A throwing-probe test proves messaging is
+   unaffected in both adapters.
+2. **Latency — instrumented.** `Worker` is `Clock`-injected and times the handler;
+   `processed(sub, msg, timing)` carries `handlerDurationMs` and `endToEndLatencyMs`
+   (`end − envelope.dispatchedAt`, un-clamped — clock skew is a real signal).
+   `LoggingProbe` logs both, so p50/p95/p99 is derivable downstream.
+3. **Produce-side failure — instrumented.** `dispatchFailed(topic, error)` on the
+   core `Probe`; `Dispatcher` emits it when `publish` throws, then rethrows (guarded).
+4. **Adapter operational plane — observed.** `BrokerProbe` (adapter-owned, guarded,
+   no-op + logging impls): Redis emits `reclaimed`/`reclaimFailed`, `reaped`/`reapFailed`,
+   `heartbeatFailed`, `redrove({redriven, skipped})`, and `connected`/`disconnected`/
+   `reconnected` (via the write client's lifecycle); NATS emits the NATS-shaped subset
+   (`connected`/`disconnected`/`reconnected` + `deliveryFailed`).
+5. **Saturation / backlog — exposed.** `RedisStreamsBroker.sampleSaturation()` returns
+   per-consumer `streamDepth` (XLEN), `pendingCount` + `consumerLag` (one `XINFO GROUPS`
+   per stream), and broker-wide `throughputPerSecond` (the in-memory `Throughput`).
+
+**Remaining (tracked, lower priority):**
+- **No metrics sink ships.** Only logging impls (`LoggingProbe`, `LoggingBrokerProbe`)
+  and recording fakes exist. A `MetricsProbe` / `MetricsBrokerProbe` (counter / gauge /
+  histogram) is now *unblocked* — every signature carries the durations, counts, and
+  results a backend needs — but is not built.
+- **NATS has no saturation-gauge analog.** `sampleSaturation()` is Redis-only; a NATS
+  version would read consumer `num_pending` / `num_ack_pending` / `num_redelivered`
+  from JetStream consumer info. Tracked.
 
 ---
 

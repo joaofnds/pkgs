@@ -67,8 +67,23 @@ describe(LoggingProbe, () => {
 		]);
 	});
 
-	it("logs a processed message at info with subscription and delivery context", () => {
-		probe.processed(sub, message(2));
+	it("logs a dispatch failure at error with the topic and reason", () => {
+		probe.dispatchFailed(topic, new Error("broker down"));
+
+		expect(logger.lines).toEqual([
+			{
+				level: "error",
+				event: "flume.dispatch_failed",
+				fields: { topic: "user.created", error: "broker down" },
+			},
+		]);
+	});
+
+	it("logs a processed message at info with subscription, delivery, and timing context", () => {
+		probe.processed(sub, message(2), {
+			handlerDurationMs: 8,
+			endToEndLatencyMs: 42,
+		});
 
 		expect(logger.lines).toEqual([
 			{
@@ -79,6 +94,8 @@ describe(LoggingProbe, () => {
 					topic: "user.created",
 					id: "1718-0",
 					deliveryCount: 2,
+					handlerDurationMs: 8,
+					endToEndLatencyMs: 42,
 				},
 			},
 		]);

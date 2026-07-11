@@ -23,7 +23,12 @@ export class Dispatcher {
 			dispatchedAt: this.clock.now(),
 			payload: this.codec.encode(payload),
 		});
-		await this.publisher.publish(topic, envelope.toBytes());
+		try {
+			await this.publisher.publish(topic, envelope.toBytes());
+		} catch (error) {
+			this.probe.dispatchFailed(topic, error);
+			throw error;
+		}
 		this.probe.dispatched(topic);
 	}
 }

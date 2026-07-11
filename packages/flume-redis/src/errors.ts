@@ -6,6 +6,10 @@ export function isClientClosedError(error: unknown): boolean {
 	return error instanceof ClientClosedError;
 }
 
+export function isNoGroupError(error: unknown): boolean {
+	return error instanceof Error && error.message.startsWith("NOGROUP");
+}
+
 export function asBrokerError(error: unknown): BrokerError {
 	if (isClientClosedError(error)) {
 		return new BrokerClosedError({ cause: error });

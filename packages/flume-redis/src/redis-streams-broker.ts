@@ -13,6 +13,9 @@ import { Throughput } from "@joaofnds/throughput";
 import { AckBatch } from "./ack-batch";
 import { BrokerError } from "./broker-error";
 import { BrokerNotConnectedError } from "./broker-not-connected-error";
+import { BrokerProbe } from "./broker-probe";
+import { BrokerSaturation } from "./broker-saturation";
+import { ClientLifecycle } from "./client-lifecycle";
 import {
 	createBlockingReadClient,
 	createReadClient,
@@ -20,9 +23,12 @@ import {
 	ReadClient,
 	WriteClient,
 } from "./clients";
+import { ConsumerSaturation } from "./consumer-saturation";
 import { ConsumerState } from "./consumer-state";
 import { RedisDeliveredMessage } from "./delivered-message";
-import { asBrokerError, isClientClosedError } from "./errors";
+import { asBrokerError, isClientClosedError, isNoGroupError } from "./errors";
+import { GuardedBrokerProbe } from "./guarded-broker-probe";
+import { NoopBrokerProbe } from "./noop-broker-probe";
 import {
 	RedisStreamsBrokerOptions,
 	ResolvedOptions,
@@ -36,6 +42,7 @@ const PAYLOAD_FIELD = "payload";
 export class RedisStreamsBroker implements Broker {
 	private readonly options: ResolvedOptions;
 	private readonly throughput: Throughput;
+	private readonly probe: BrokerProbe;
 	private writeClient?: WriteClient;
 	private reclaimClient?: ReadClient;
 	private reclaimTimer?: ReturnType<typeof setInterval>;
@@ -45,28 +52,31 @@ export class RedisStreamsBroker implements Broker {
 
 	constructor(
 		options: RedisStreamsBrokerOptions,
+		probe: BrokerProbe = new NoopBrokerProbe(),
 		throughput: Throughput = new Throughput(60, 1000),
 	) {
 		this.options = resolveOptions(options);
 		this.throughput = throughput;
+		this.probe = new GuardedBrokerProbe(probe);
 	}
 
 	async connect(): Promise<void> {
 		this.writeClient = createWriteClient(this.options.redis);
 		this.reclaimClient = createReadClient(this.options.redis);
+		new ClientLifecycle(this.probe).watch(this.writeClient);
 		await Promise.all([
 			this.writeClient.connect(),
 			this.reclaimClient.connect(),
 		]);
 		this.throughput.start();
 		this.reclaimTimer = setInterval(() => {
-			this.reclaim().catch(() => {});
+			this.reclaim().catch((error) => this.probe.reclaimFailed(error));
 		}, this.options.reclaim.interval);
 		this.heartbeatTimer = setInterval(() => {
-			this.heartbeat().catch(() => {});
+			this.heartbeat().catch((error) => this.probe.heartbeatFailed(error));
 		}, this.options.broadcast.heartbeatInterval);
 		this.reaperTimer = setInterval(() => {
-			this.reap().catch(() => {});
+			this.reap().catch((error) => this.probe.reapFailed(error));
 		}, this.options.reaper.interval);
 	}
 
@@ -179,7 +189,46 @@ export class RedisStreamsBroker implements Broker {
 		} catch (error) {
 			throw asBrokerError(error);
 		}
-		return { redriven, skipped };
+		const result: RedriveResult = { redriven, skipped };
+		this.probe.redrove(result);
+		return result;
+	}
+
+	async sampleSaturation(): Promise<BrokerSaturation> {
+		const writeClient = this.requireWriteClient();
+		const statesByStream = new Map<string, ConsumerState[]>();
+		for (const state of this.consumers) {
+			if (state.stopped) continue;
+			const states = statesByStream.get(state.stream) ?? [];
+			states.push(state);
+			statesByStream.set(state.stream, states);
+		}
+
+		const consumers: ConsumerSaturation[] = [];
+		try {
+			for (const [stream, states] of statesByStream) {
+				const streamDepth = await writeClient.xLen(stream);
+				const groups = await writeClient.xInfoGroups(stream);
+				const byGroup = new Map(groups.map((g) => [String(g.name), g]));
+				for (const state of states) {
+					const info = byGroup.get(state.group);
+					consumers.push({
+						stream,
+						group: state.group,
+						streamDepth,
+						pendingCount: info ? Number(info.pending) : 0,
+						consumerLag: info ? Number(info.lag ?? 0) : 0,
+					});
+				}
+			}
+		} catch (error) {
+			throw asBrokerError(error);
+		}
+
+		return {
+			throughputPerSecond: this.throughput.perSecond(),
+			consumers,
+		};
 	}
 
 	private groupFor(sub: Subscription): string {
@@ -229,6 +278,11 @@ export class RedisStreamsBroker implements Broker {
 				}
 			} catch (error) {
 				if (state.stopped || isClientClosedError(error)) return;
+				if (isNoGroupError(error)) {
+					state.stopped = true;
+					this.probe.consumerStopped(state.stream, state.group, error);
+					return;
+				}
 			}
 		}
 	}
@@ -237,17 +291,20 @@ export class RedisStreamsBroker implements Broker {
 		const reclaimClient = this.reclaimClient;
 		if (reclaimClient === undefined || !this.shouldReclaim()) return;
 
+		let reclaimed = 0;
 		for (const state of this.consumers) {
 			if (state.stopped) continue;
-			await this.reclaimStream(reclaimClient, state);
+			reclaimed += await this.reclaimStream(reclaimClient, state);
 		}
+		if (reclaimed > 0) this.probe.reclaimed(reclaimed);
 	}
 
 	private async reclaimStream(
 		reclaimClient: ReadClient,
 		state: ConsumerState,
-	): Promise<void> {
+	): Promise<number> {
 		let cursor = "0";
+		let claimed = 0;
 		do {
 			const claim = await reclaimClient.xAutoClaim(
 				state.stream,
@@ -258,15 +315,17 @@ export class RedisStreamsBroker implements Broker {
 				{ COUNT: this.options.reclaim.count },
 			);
 			for (const raw of claim.messages) {
-				if (state.stopped) return;
+				if (state.stopped) return claimed;
 				if (raw === null) continue;
 				const id = idOf(raw.id);
 				const count = await this.deliveryCount(state, id);
 				await this.deliver(state, id, bodyOf(raw.message), count);
+				claimed += 1;
 			}
 			// idOf() normalizes the Buffer cursor so the "0-0" terminator compares (raw compare would loop forever).
 			cursor = idOf(claim.nextId);
 		} while (cursor !== "0-0");
+		return claimed;
 	}
 
 	private shouldReclaim(): boolean {
@@ -311,14 +370,21 @@ export class RedisStreamsBroker implements Broker {
 		if (writeClient === undefined) return;
 		const streams = new Set<string>();
 		for (const state of this.consumers) streams.add(state.stream);
+		let groupsDestroyed = 0;
+		let streamsTrimmed = 0;
 		for (const stream of streams) {
 			const dead = await this.destroyExpiredBroadcastGroups(
 				writeClient,
 				stream,
 			);
+			groupsDestroyed += dead.size;
 			if (this.options.reaper.trim) {
-				await this.trimStream(writeClient, stream, dead);
+				const trimmed = await this.trimStream(writeClient, stream, dead);
+				if (trimmed) streamsTrimmed += 1;
 			}
+		}
+		if (groupsDestroyed > 0 || streamsTrimmed > 0) {
+			this.probe.reaped(groupsDestroyed, streamsTrimmed);
 		}
 	}
 
@@ -342,10 +408,10 @@ export class RedisStreamsBroker implements Broker {
 		writeClient: WriteClient,
 		stream: string,
 		dead: Set<string>,
-	): Promise<void> {
+	): Promise<boolean> {
 		const groups = await writeClient.xInfoGroups(stream);
 		const live = groups.filter((group) => !dead.has(String(group.name)));
-		if (live.length === 0) return;
+		if (live.length === 0) return false;
 
 		const floors: string[] = [];
 		for (const group of live) {
@@ -359,6 +425,7 @@ export class RedisStreamsBroker implements Broker {
 			);
 		}
 		await writeClient.xTrim(stream, "MINID", minStreamId(floors));
+		return true;
 	}
 
 	private async groupLowWaterMark(

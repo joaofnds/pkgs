@@ -18,7 +18,11 @@ import {
 	RetentionPolicy,
 } from "nats";
 import { BrokerNotConnectedError } from "./broker-not-connected-error";
+import { BrokerProbe } from "./broker-probe";
+import { ConnectionLifecycle } from "./connection-lifecycle";
+import { GuardedBrokerProbe } from "./guarded-broker-probe";
 import { NatsDeliveredMessage } from "./nats-delivered-message";
+import { NoopBrokerProbe } from "./noop-broker-probe";
 import {
 	NatsBrokerOptions,
 	ResolvedNatsOptions,
@@ -37,15 +41,22 @@ export class NatsStreamsBroker implements Broker {
 	private streamReady = false;
 	private readonly running: ConsumerMessages[] = [];
 	private readonly options: ResolvedNatsOptions;
+	private readonly probe: BrokerProbe;
 
-	constructor(options: NatsBrokerOptions) {
+	constructor(
+		options: NatsBrokerOptions,
+		probe: BrokerProbe = new NoopBrokerProbe(),
+	) {
 		this.options = resolveOptions(options);
+		this.probe = new GuardedBrokerProbe(probe);
 	}
 
 	async connect(): Promise<void> {
 		const nc = await connect({ noAsyncTraces: true, ...this.options.nats });
 		const jsm = await nc.jetstreamManager();
 		this.connection = { nc, js: nc.jetstream(), jsm };
+		this.probe.connected();
+		void new ConnectionLifecycle(this.probe).watch(nc);
 	}
 
 	async close(): Promise<void> {
@@ -113,9 +124,8 @@ export class NatsStreamsBroker implements Broker {
 	): Promise<void> {
 		try {
 			await deliver(new NatsDeliveredMessage(msg, topic));
-		} catch {
-			// unacked → JetStream redelivers after ack_wait; swallowing stops one
-			// failed delivery from tearing down the whole consumer loop.
+		} catch (error) {
+			this.probe.deliveryFailed(error);
 		}
 	}
 

@@ -41,6 +41,7 @@ export class Flume {
 			props.broker,
 			props.broker,
 			props.codec,
+			props.clock,
 			props.probe,
 		);
 	}

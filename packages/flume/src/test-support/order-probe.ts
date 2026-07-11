@@ -15,7 +15,9 @@ export class OrderProbe implements Probe {
 		this.calls.push({ call: "dispatched", acked: false, nacked: false });
 	}
 
-	processed(_sub: unknown, msg: DeliveredMessage): void {
+	dispatchFailed(): void {}
+
+	processed(_sub: unknown, msg: DeliveredMessage, _timing: unknown): void {
 		this.record("processed", msg);
 	}
 
