@@ -14,7 +14,7 @@ export class EventRegistry {
 	}
 
 	events() {
-		return Array.from(this.#events.keys());
+		return this.#events.keys().toArray();
 	}
 
 	eventListeners(event: string) {
@@ -22,6 +22,6 @@ export class EventRegistry {
 	}
 
 	listeners() {
-		return Array.from(this.#events.values()).flat();
+		return this.#events.values().toArray().flat();
 	}
 }

@@ -40,7 +40,7 @@ export class BeeService implements OnModuleInit, OnModuleDestroy {
 	}
 
 	getQueues() {
-		return Array.from(this.queues.values());
+		return this.queues.values().toArray();
 	}
 
 	private setupQueues() {
