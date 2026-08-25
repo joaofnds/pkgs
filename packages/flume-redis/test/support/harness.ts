@@ -55,6 +55,10 @@ export class BrokerHarness {
 		await this.maint.close();
 	}
 
+	async [Symbol.asyncDispose](): Promise<void> {
+		await this.stop();
+	}
+
 	async pendingCount(
 		stream: string,
 		group: string,
