@@ -1,6 +1,9 @@
 {
 	"name": "@joaofnds/flume",
 	"version": "0.0.0",
+	"engines": {
+		"node": ">=24"
+	},
 	"license": "MIT",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
