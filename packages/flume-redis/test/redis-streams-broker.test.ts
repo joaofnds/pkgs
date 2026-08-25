@@ -77,7 +77,7 @@ describe("RedisStreamsBroker (Redis-specific mechanics)", () => {
 	});
 
 	it("reclaims the entire backlog when it exceeds the reclaim count", async () => {
-		const small = await BrokerHarness.start({
+		await using small = await BrokerHarness.start({
 			reclaim: {
 				interval: 50,
 				minIdleTime: 50,
@@ -85,33 +85,30 @@ describe("RedisStreamsBroker (Redis-specific mechanics)", () => {
 				throughputThreshold: 1_000_000,
 			},
 		});
-		try {
-			const topic = uniqueTopic();
-			const deliveries = new Deliveries();
-			deliveries.mode = "nack";
-			await small.broker.consume(subscription(topic, "h"), deliveries.deliver);
 
-			const backlog = 12;
-			for (let i = 0; i < backlog; i++) {
-				await small.broker.publish(new Topic(topic), encode(`m${i}`));
-			}
+		const topic = uniqueTopic();
+		const deliveries = new Deliveries();
+		deliveries.mode = "nack";
+		await small.broker.consume(subscription(topic, "h"), deliveries.deliver);
 
-			const redeliveredIds = (): Set<string> =>
-				new Set(
-					deliveries.messages
-						.filter((m) => m.deliveryCount >= 2)
-						.map((m) => m.id),
-				);
-			await waitFor(() => redeliveredIds().size === backlog, {
-				message: "every nacked message in the backlog should be reclaimed",
-			});
-		} finally {
-			await small.stop();
+		const backlog = 12;
+		for (let i = 0; i < backlog; i++) {
+			await small.broker.publish(new Topic(topic), encode(`m${i}`));
 		}
+
+		const redeliveredIds = (): Set<string> =>
+			new Set(
+				deliveries.messages
+					.filter((m) => m.deliveryCount >= 2)
+					.map((m) => m.id),
+			);
+		await waitFor(() => redeliveredIds().size === backlog, {
+			message: "every nacked message in the backlog should be reclaimed",
+		});
 	});
 
 	it("does not reclaim while local throughput is above the gate threshold", async () => {
-		const gated = await BrokerHarness.start({
+		await using gated = await BrokerHarness.start({
 			reclaim: {
 				interval: 50,
 				minIdleTime: 50,
@@ -119,19 +116,16 @@ describe("RedisStreamsBroker (Redis-specific mechanics)", () => {
 				throughputThreshold: 0,
 			},
 		});
-		try {
-			const topic = uniqueTopic();
-			const deliveries = new Deliveries();
-			deliveries.mode = "nack";
-			await gated.broker.consume(subscription(topic, "h"), deliveries.deliver);
 
-			await gated.broker.publish(new Topic(topic), encode("stuck"));
-			await waitFor(() => deliveries.messages.length === 1);
+		const topic = uniqueTopic();
+		const deliveries = new Deliveries();
+		deliveries.mode = "nack";
+		await gated.broker.consume(subscription(topic, "h"), deliveries.deliver);
 
-			await sleep(300);
-			expect(deliveries.messages).toHaveLength(1);
-		} finally {
-			await gated.stop();
-		}
+		await gated.broker.publish(new Topic(topic), encode("stuck"));
+		await waitFor(() => deliveries.messages.length === 1);
+
+		await sleep(300);
+		expect(deliveries.messages).toHaveLength(1);
 	});
 });

@@ -9,7 +9,7 @@ import {
 	Topic,
 } from "@joaofnds/flume";
 import { uniqueTopic, waitFor } from "@joaofnds/flume-tck";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { BrokerHarness } from "./support/harness";
 
 const NOOP: EventHandler = { async handle() {} };
@@ -51,30 +51,22 @@ class Deliveries {
 const encode = (text: string): Uint8Array => new TextEncoder().encode(text);
 
 describe("broadcast delivery + group reaper", () => {
-	const open: BrokerHarness[] = [];
-
 	async function startInstance(
 		overrides: Parameters<typeof BrokerHarness.start>[0] = {},
 	): Promise<BrokerHarness> {
-		const harness = await BrokerHarness.start({
+		return BrokerHarness.start({
 			broadcast: FAST_BROADCAST,
 			...overrides,
 		});
-		open.push(harness);
-		return harness;
 	}
-
-	afterEach(async () => {
-		await Promise.all(open.splice(0).map((harness) => harness.stop()));
-	});
 
 	it("delivers every event to each instance's own per-instance group", async () => {
 		const topic = uniqueTopic();
-		const a = await startInstance({
+		await using a = await startInstance({
 			instanceId: "inst-a",
 			reaper: { interval: 1000, trim: false },
 		});
-		const b = await startInstance({
+		await using b = await startInstance({
 			instanceId: "inst-b",
 			reaper: { interval: 1000, trim: false },
 		});
@@ -98,7 +90,7 @@ describe("broadcast delivery + group reaper", () => {
 
 	it("reaps a dead instance's orphaned broadcast group while keeping live ones", async () => {
 		const topic = uniqueTopic();
-		const live = await startInstance({
+		await using live = await startInstance({
 			instanceId: "inst-a",
 			reaper: { interval: 40, trim: false },
 		});
@@ -123,7 +115,7 @@ describe("broadcast delivery + group reaper", () => {
 
 	it("does not reap a live broadcast group whose heartbeat is current", async () => {
 		const topic = uniqueTopic();
-		const live = await startInstance({
+		await using live = await startInstance({
 			instanceId: "inst-a",
 			reaper: { interval: 30, trim: false },
 		});
@@ -139,7 +131,7 @@ describe("broadcast delivery + group reaper", () => {
 
 	it("destroys this instance's broadcast group on graceful stop", async () => {
 		const topic = uniqueTopic();
-		const harness = await startInstance({
+		await using harness = await startInstance({
 			instanceId: "inst-a",
 			reaper: { interval: 1000, trim: false },
 		});
@@ -159,7 +151,7 @@ describe("broadcast delivery + group reaper", () => {
 
 	it("trims a live stream by MINID only over groups that survive the reaper", async () => {
 		const topic = uniqueTopic();
-		const harness = await startInstance({
+		await using harness = await startInstance({
 			reaper: { interval: 40, trim: true },
 		});
 		const worker = new Deliveries();

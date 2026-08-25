@@ -8,7 +8,7 @@ import {
 } from "@joaofnds/flume";
 import { uniqueTopic, waitFor } from "@joaofnds/flume-tck";
 import { Throughput } from "@joaofnds/throughput";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { BrokerSaturation } from "../src/index";
 import { BrokerHarness } from "./support/harness";
 
@@ -48,20 +48,12 @@ function snapshotFor(
 }
 
 describe("saturation gauges", () => {
-	const open: BrokerHarness[] = [];
-
-	afterEach(async () => {
-		await Promise.all(open.splice(0).map((harness) => harness.stop()));
-	});
-
 	async function start(throughput?: Throughput): Promise<BrokerHarness> {
-		const harness = await BrokerHarness.start({}, undefined, throughput);
-		open.push(harness);
-		return harness;
+		return BrokerHarness.start({}, undefined, throughput);
 	}
 
 	it("reports stream depth with no pending once every message is acked", async () => {
-		const harness = await start();
+		await using harness = await start();
 		const topic = uniqueTopic();
 		const deliveries = new Deliveries();
 		await harness.broker.consume(subscription(topic, "h"), deliveries.deliver);
@@ -86,7 +78,7 @@ describe("saturation gauges", () => {
 	});
 
 	it("reports the pending count while messages stay unacked", async () => {
-		const harness = await start();
+		await using harness = await start();
 		const topic = uniqueTopic();
 		const deliveries = new Deliveries();
 		deliveries.mode = "nack";
@@ -107,7 +99,7 @@ describe("saturation gauges", () => {
 	});
 
 	it("reports local throughput per second after deliveries", async () => {
-		const harness = await start(new Throughput(20, 25));
+		await using harness = await start(new Throughput(20, 25));
 		const topic = uniqueTopic();
 		const deliveries = new Deliveries();
 		await harness.broker.consume(subscription(topic, "h"), deliveries.deliver);

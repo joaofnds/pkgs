@@ -12,7 +12,7 @@ import {
 } from "@joaofnds/flume";
 import { FakeProbe, RecordingHandler } from "@joaofnds/flume/testing";
 import { uniqueTopic, waitFor } from "@joaofnds/flume-tck";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { isNoGroupError } from "../src/errors";
 import { RecordingBrokerProbe } from "../src/test-support/recording-broker-probe";
 import { ThrowingBrokerProbe } from "../src/test-support/throwing-broker-probe";
@@ -50,33 +50,26 @@ class Deliveries {
 const encode = (text: string): Uint8Array => new TextEncoder().encode(text);
 
 describe("BrokerProbe wiring", () => {
-	const open: BrokerHarness[] = [];
 	let probe: RecordingBrokerProbe;
 
 	beforeEach(() => {
 		probe = new RecordingBrokerProbe();
 	});
 
-	afterEach(async () => {
-		await Promise.all(open.splice(0).map((harness) => harness.stop()));
-	});
-
 	async function start(
 		overrides: Parameters<typeof BrokerHarness.start>[0] = {},
 	): Promise<BrokerHarness> {
-		const harness = await BrokerHarness.start(overrides, probe);
-		open.push(harness);
-		return harness;
+		return BrokerHarness.start(overrides, probe);
 	}
 
 	it("reports connected once the broker connects", async () => {
-		await start();
+		await using _harness = await start();
 
 		expect(probe.connectedCount).toBe(1);
 	});
 
 	it("reports the number of messages reclaimed in a pass", async () => {
-		const harness = await start({
+		await using harness = await start({
 			reclaim: {
 				interval: 50,
 				minIdleTime: 50,
@@ -102,7 +95,7 @@ describe("BrokerProbe wiring", () => {
 	});
 
 	it("reports the groups destroyed by the reaper", async () => {
-		const harness = await start({
+		await using harness = await start({
 			broadcast: { heartbeatInterval: 25, heartbeatTtl: 100 },
 			reaper: { interval: 40, trim: false },
 		});
@@ -120,7 +113,9 @@ describe("BrokerProbe wiring", () => {
 	});
 
 	it("reports a reaper failure instead of dropping it", async () => {
-		const harness = await start({ reaper: { interval: 40, trim: false } });
+		await using harness = await start({
+			reaper: { interval: 40, trim: false },
+		});
 		const topic = uniqueTopic();
 		await harness.broker.consume(
 			subscription(topic, "h"),
@@ -136,7 +131,7 @@ describe("BrokerProbe wiring", () => {
 	});
 
 	it("keeps delivering messages when the broker probe throws", async () => {
-		const hostile = await BrokerHarness.start(
+		await using hostile = await BrokerHarness.start(
 			{
 				reclaim: {
 					interval: 50,
@@ -147,7 +142,6 @@ describe("BrokerProbe wiring", () => {
 			},
 			new ThrowingBrokerProbe(),
 		);
-		open.push(hostile);
 		const topic = uniqueTopic();
 		const deliveries = new Deliveries();
 		await hostile.broker.consume(subscription(topic, "h"), deliveries.deliver);
@@ -160,7 +154,7 @@ describe("BrokerProbe wiring", () => {
 	});
 
 	it("stops a consumer's read loop without busy-spinning when its group is destroyed", async () => {
-		const harness = await start();
+		await using harness = await start();
 		const topic = uniqueTopic();
 		const group = "flume:h";
 		await harness.broker.consume(
@@ -186,7 +180,7 @@ describe("BrokerProbe wiring", () => {
 	});
 
 	it("reports the result of a dead-letter redrive", async () => {
-		const harness = await start();
+		await using harness = await start();
 		const topic = uniqueTopic();
 		const handler = new RecordingHandler();
 		handler.shouldFail = true;
