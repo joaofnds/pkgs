@@ -2,11 +2,11 @@
 	"include": ["benchmark/**/*.ts"],
 	"compilerOptions": {
 		"noEmit": true,
-		"lib": ["es2024"],
+		"lib": ["esnext"],
 		"module": "commonjs",
 		"skipLibCheck": true,
 		"strict": true,
-		"target": "es2022",
+		"target": "es2024",
 		"types": ["node"]
 	}
 }
