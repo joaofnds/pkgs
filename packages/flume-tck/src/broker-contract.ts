@@ -201,6 +201,21 @@ export function brokerContractTests<B extends Broker>(
 			expect(new Set(ids).size).toBe(4);
 		});
 
+		it("delivers nothing more once the running consumer is stopped", async () => {
+			const b = await broker();
+			const topic = uniqueTopic();
+			const collector = new Collector();
+			const running = await b.consume(rawSub(topic, "h"), collector.deliver);
+			await b.publish(new Topic(topic), encode("before"));
+			await waitFor(() => collector.messages.length === 1);
+
+			await running.stop();
+
+			await b.publish(new Topic(topic), encode("after"));
+			await sleep(quietWindow);
+			expect(collector.bodies()).toEqual(["before"]);
+		});
+
 		if (capabilities.startFromBeginning) {
 			it("replays events published before a startFrom:beginning subscription", async () => {
 				const b = await broker();
