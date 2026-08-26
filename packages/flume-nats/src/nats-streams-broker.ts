@@ -55,8 +55,15 @@ export class NatsStreamsBroker implements Broker {
 
 	async connect(): Promise<void> {
 		const nc = await connect({ noAsyncTraces: true, ...this.options.nats });
-		const jsm = await jetstreamManager(nc);
-		this.connection = { nc, js: jetstream(nc), jsm };
+
+		try {
+			const jsm = await jetstreamManager(nc);
+			this.connection = { nc, js: jetstream(nc), jsm };
+		} catch (error) {
+			await nc.close();
+			throw error;
+		}
+
 		this.probe.connected();
 		void new ConnectionLifecycle(this.probe).watch(nc);
 	}
