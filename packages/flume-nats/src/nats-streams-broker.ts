@@ -114,7 +114,8 @@ export class NatsStreamsBroker implements Broker {
 				}
 			}
 		} catch {
-			// the iterator ends cleanly on close; only a mid-flight connection error throws.
+			// nc.close() throws ClosedConnectionError into the iterator even after
+			// stop(); unhandled, it would surface as a rejection on every shutdown.
 		}
 		await Promise.allSettled(inFlight);
 	}
