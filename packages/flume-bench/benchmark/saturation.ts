@@ -24,7 +24,8 @@ import {
 	Topic,
 } from "@joaofnds/flume";
 import { NatsStreamsBroker } from "@joaofnds/flume-nats";
-import { connect, RetentionPolicy } from "nats";
+import { jetstreamManager, RetentionPolicy } from "@nats-io/jetstream";
+import { connect } from "@nats-io/transport-node";
 import { createClient } from "redis";
 import { fixed, num, table } from "./bench-report";
 import { resolveContainer, sampleContainerCores } from "./sat-metrics";
@@ -177,7 +178,7 @@ function sum(map: Map<number, number>): number {
 async function cleanupBackend(system: SystemKind, url: string): Promise<void> {
 	if (system === "nats") {
 		const nc = await connect({ servers: url });
-		const jsm = await nc.jetstreamManager();
+		const jsm = await jetstreamManager(nc);
 		await jsm.streams.delete("flume").catch(() => {});
 		await nc.close();
 		return;
@@ -190,7 +191,7 @@ async function cleanupBackend(system: SystemKind, url: string): Promise<void> {
 
 async function ensureNatsStream(url: string): Promise<void> {
 	const nc = await connect({ servers: url, noAsyncTraces: true });
-	const jsm = await nc.jetstreamManager();
+	const jsm = await jetstreamManager(nc);
 	try {
 		await jsm.streams.info("flume");
 	} catch {
