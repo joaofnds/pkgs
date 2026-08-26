@@ -5,6 +5,7 @@
 // state throughput from the deltas. No top-level await — tsx transforms these to
 // CJS, which forbids it.
 
+import { setTimeout as sleep } from "node:timers/promises";
 import { parentPort, workerData } from "node:worker_threads";
 import {
 	type Broker,
@@ -29,8 +30,6 @@ const port = parentPort;
 if (port === null) throw new Error("sat-worker must run as a worker thread");
 
 const now = (): number => performance.timeOrigin + performance.now();
-const sleep = (ms: number): Promise<void> =>
-	new Promise((resolve) => setTimeout(resolve, ms));
 
 let published = 0;
 let processed = 0;

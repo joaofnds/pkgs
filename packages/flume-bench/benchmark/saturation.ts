@@ -15,6 +15,7 @@
 
 import { cpus } from "node:os";
 import { join } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import { Worker } from "node:worker_threads";
 import {
 	DeliveryMode,
@@ -76,8 +77,6 @@ interface Row {
 	readonly bound: string;
 }
 
-const sleep = (ms: number): Promise<void> =>
-	new Promise((resolve) => setTimeout(resolve, ms));
 const epoch = (): number => performance.timeOrigin + performance.now();
 
 function uniqueAscending(values: number[]): number[] {
