@@ -10,7 +10,6 @@ import {
 	ConsumerMessages,
 	JetStreamClient,
 	JetStreamManager,
-	JsMsg,
 	jetstream,
 	jetstreamManager,
 } from "@nats-io/jetstream";
@@ -19,9 +18,9 @@ import { connect } from "@nats-io/transport-node";
 import { BrokerNotConnectedError } from "./broker-not-connected-error";
 import { BrokerProbe } from "./broker-probe";
 import { ConnectionLifecycle } from "./connection-lifecycle";
+import { ConsumerDrain } from "./consumer-drain";
 import { GuardedBrokerProbe } from "./guarded-broker-probe";
 import { ensureConsumer, ensureStream } from "./jetstream-topology";
-import { NatsDeliveredMessage } from "./nats-delivered-message";
 import { NoopBrokerProbe } from "./noop-broker-probe";
 import {
 	NatsBrokerOptions,
@@ -95,48 +94,18 @@ export class NatsStreamsBroker implements Broker {
 			max_messages: this.options.readCount,
 		});
 		this.running.push(messages);
-		void this.drain(messages, sub.topic, deliver);
+		void new ConsumerDrain(this.probe, this.options.readCount).drain(
+			messages,
+			sub.topic,
+			durable,
+			deliver,
+		);
 
 		return {
 			stop: async () => {
 				messages.stop();
 			},
 		};
-	}
-
-	private async drain(
-		messages: ConsumerMessages,
-		topic: Topic,
-		deliver: (msg: DeliveredMessage) => Promise<void>,
-	): Promise<void> {
-		const inFlight = new Set<Promise<void>>();
-		try {
-			for await (const msg of messages) {
-				const task = this.handle(msg, topic, deliver);
-				inFlight.add(task);
-				task.finally(() => inFlight.delete(task));
-				if (inFlight.size >= this.options.readCount) {
-					await Promise.race(inFlight);
-				}
-			}
-		} catch {
-			// closing with work in flight throws ClosedConnectionError into the
-			// iterator; idle, it ends cleanly. unhandled, that throw would surface
-			// as a rejection out of the un-awaited drain().
-		}
-		await Promise.allSettled(inFlight);
-	}
-
-	private async handle(
-		msg: JsMsg,
-		topic: Topic,
-		deliver: (msg: DeliveredMessage) => Promise<void>,
-	): Promise<void> {
-		try {
-			await deliver(new NatsDeliveredMessage(msg, topic));
-		} catch (error) {
-			this.probe.deliveryFailed(error);
-		}
 	}
 
 	private connected(): Connection {
