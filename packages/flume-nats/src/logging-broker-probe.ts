@@ -24,6 +24,14 @@ export class LoggingBrokerProbe implements BrokerProbe {
 		});
 	}
 
+	consumerStopped(subject: string, durable: string, error: unknown): void {
+		this.logger.error("flume.broker.consumer_stopped", {
+			subject,
+			durable,
+			error: this.reason(error),
+		});
+	}
+
 	private reason(error: unknown): string {
 		return error instanceof Error ? error.message : String(error);
 	}

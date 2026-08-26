@@ -65,6 +65,26 @@ describe(LoggingBrokerProbe, () => {
 		]);
 	});
 
+	it("logs a consumer stop at error with the subject, durable and reason", () => {
+		probe.consumerStopped(
+			"flume.orders",
+			"orders__workers",
+			new Error("permission violation"),
+		);
+
+		expect(logger.lines).toEqual([
+			{
+				level: "error",
+				event: "flume.broker.consumer_stopped",
+				fields: {
+					subject: "flume.orders",
+					durable: "orders__workers",
+					error: "permission violation",
+				},
+			},
+		]);
+	});
+
 	it("stringifies a non-Error failure reason", () => {
 		probe.deliveryFailed("plain string reason");
 

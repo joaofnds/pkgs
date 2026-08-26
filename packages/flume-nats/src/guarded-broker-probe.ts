@@ -19,6 +19,10 @@ export class GuardedBrokerProbe implements BrokerProbe {
 		this.guard(() => this.delegate.deliveryFailed(error));
 	}
 
+	consumerStopped(subject: string, durable: string, error: unknown): void {
+		this.guard(() => this.delegate.consumerStopped(subject, durable, error));
+	}
+
 	private guard(call: () => void): void {
 		try {
 			call();
