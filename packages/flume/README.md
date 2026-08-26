@@ -201,4 +201,4 @@ is a ready-made `EventHandler` that captures the events it receives.
 
 ## License
 
-MIT
+Apache-2.0. See [LICENSE](LICENSE).

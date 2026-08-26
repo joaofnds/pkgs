@@ -102,4 +102,4 @@ const result = await broker.redriveDeadLetters({
 
 ## License
 
-MIT
+Apache-2.0. See [LICENSE](LICENSE).

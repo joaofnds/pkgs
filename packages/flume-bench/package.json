@@ -2,7 +2,7 @@
 	"name": "@joaofnds/flume-bench",
 	"version": "0.0.0",
 	"private": true,
-	"license": "MIT",
+	"license": "Apache-2.0",
 	"author": "joaofnds <joaofnds@joaofnds.com>",
 	"repository": {
 		"url": "https://github.com/joaofnds/pkgs.git",

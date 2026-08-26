@@ -70,4 +70,4 @@ Capability-gated behaviors (a broker declares what it supports; the rest are ski
 
 ## License
 
-MIT
+Apache-2.0. See [LICENSE](../../LICENSE).

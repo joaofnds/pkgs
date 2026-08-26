@@ -77,4 +77,4 @@ and acks), only the replay utility is pending.
 
 ## License
 
-MIT
+Apache-2.0. See [LICENSE](LICENSE).
