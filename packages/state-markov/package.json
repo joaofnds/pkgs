@@ -1,6 +1,6 @@
 {
   "name": "@joaofnds/state-markov",
-  "version": "1.5.9",
+  "version": "1.5.10",
   "engines": {
     "node": ">=24"
   },
