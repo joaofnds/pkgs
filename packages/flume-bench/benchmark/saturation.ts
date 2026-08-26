@@ -130,7 +130,8 @@ class Fleet {
 			}
 		});
 		worker.on("error", (error) => {
-			progress(`  worker ${id} thread error: ${error.message}`);
+			const message = error instanceof Error ? error.message : String(error);
+			progress(`  worker ${id} thread error: ${message}`);
 			ready.resolve();
 		});
 		return ready.promise;

@@ -33,7 +33,7 @@
   },
   "devDependencies": {
     "@joaofnds/flume-tck": "workspace:^",
-    "@types/node": "^24.13.2",
+    "@types/node": "^26.3.0",
     "redis": "^6.2.1",
     "typescript": "^7.0.2"
   }
