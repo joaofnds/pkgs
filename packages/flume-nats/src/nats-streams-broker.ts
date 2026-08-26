@@ -7,15 +7,12 @@ import {
 	Topic,
 } from "@joaofnds/flume";
 import {
-	AckPolicy,
 	ConsumerMessages,
-	DeliverPolicy,
 	JetStreamClient,
 	JetStreamManager,
 	JsMsg,
 	jetstream,
 	jetstreamManager,
-	RetentionPolicy,
 } from "@nats-io/jetstream";
 import { NatsConnection } from "@nats-io/nats-core";
 import { connect } from "@nats-io/transport-node";
@@ -23,6 +20,7 @@ import { BrokerNotConnectedError } from "./broker-not-connected-error";
 import { BrokerProbe } from "./broker-probe";
 import { ConnectionLifecycle } from "./connection-lifecycle";
 import { GuardedBrokerProbe } from "./guarded-broker-probe";
+import { ensureConsumer, ensureStream } from "./jetstream-topology";
 import { NatsDeliveredMessage } from "./nats-delivered-message";
 import { NoopBrokerProbe } from "./noop-broker-probe";
 import {
@@ -30,7 +28,7 @@ import {
 	ResolvedNatsOptions,
 	resolveOptions,
 } from "./options";
-import { durableFor, STREAM, STREAM_SUBJECTS, subjectFor } from "./subject";
+import { durableFor, STREAM, subjectFor } from "./subject";
 
 interface Connection {
 	readonly nc: NatsConnection;
@@ -87,9 +85,9 @@ export class NatsStreamsBroker implements Broker {
 		sub: Subscription,
 		deliver: (msg: DeliveredMessage) => Promise<void>,
 	): Promise<RunningConsumer> {
-		const { js } = await this.ready();
+		const { js, jsm } = await this.ready();
 		const durable = durableFor(sub, this.options.instanceId);
-		await this.ensureConsumer(durable, sub);
+		await ensureConsumer(jsm, durable, sub, this.options.ackWait);
 
 		const consumer = await js.consumers.get(STREAM, durable);
 		const messages = await consumer.consume({
@@ -148,38 +146,10 @@ export class NatsStreamsBroker implements Broker {
 	private async ready(): Promise<Connection> {
 		const connection = this.connected();
 		if (this.streamReady) return connection;
-		try {
-			await connection.jsm.streams.info(STREAM);
-		} catch {
-			await connection.jsm.streams.add({
-				name: STREAM,
-				subjects: STREAM_SUBJECTS,
-				retention: RetentionPolicy.Limits,
-			});
-		}
-		this.streamReady = true;
-		return connection;
-	}
 
-	private async ensureConsumer(
-		durable: string,
-		sub: Subscription,
-	): Promise<void> {
-		const { jsm } = this.connected();
-		try {
-			await jsm.consumers.info(STREAM, durable);
-			return;
-		} catch {
-			// not found — create it below.
-		}
-		await jsm.consumers.add(STREAM, {
-			durable_name: durable,
-			filter_subject: subjectFor(sub.topic.name),
-			ack_policy: AckPolicy.Explicit,
-			deliver_policy:
-				sub.startFrom === "beginning" ? DeliverPolicy.All : DeliverPolicy.New,
-			ack_wait: this.options.ackWait * 1_000_000,
-			max_deliver: -1,
-		});
+		await ensureStream(connection.jsm);
+		this.streamReady = true;
+
+		return connection;
 	}
 }
