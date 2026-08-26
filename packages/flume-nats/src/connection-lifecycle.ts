@@ -1,7 +1,8 @@
+import { Status } from "@nats-io/nats-core";
 import { BrokerProbe } from "./broker-probe";
 
 export interface StatusEmitter {
-	status(): AsyncIterable<{ type: string }>;
+	status(): AsyncIterable<Status>;
 }
 
 export class ConnectionLifecycle {
