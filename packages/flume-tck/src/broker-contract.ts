@@ -53,6 +53,10 @@ export interface BrokerContractOptions<B extends Broker> {
 	): Promise<RedriveOutcome>;
 	// folded into every subscription name; defaults to "tck".
 	readonly namespace?: string;
+	// how long a test waits before concluding nothing further will arrive; defaults
+	// to 250. An adapter whose redelivery window is longer must raise it above that
+	// window, or the quiet-window assertions cannot see a missing ack.
+	readonly quietWindowMs?: number;
 }
 
 const NOOP: EventHandler = { async handle() {} };
@@ -64,6 +68,7 @@ export function brokerContractTests<B extends Broker>(
 ): void {
 	const { makeBroker, closeBroker, capabilities } = options;
 	const namespace = options.namespace ?? "tck";
+	const quietWindow = options.quietWindowMs ?? 250;
 
 	describe(`broker contract: ${name}`, () => {
 		const open: B[] = [];
@@ -156,7 +161,7 @@ export function brokerContractTests<B extends Broker>(
 			expect(handler.events[0].payload).toEqual({ hello: "world" });
 			expect(handler.events[0].deliveryCount).toBe(1);
 
-			await sleep(250);
+			await sleep(quietWindow);
 			expect(handler.events).toHaveLength(1);
 		});
 
@@ -303,7 +308,7 @@ export function brokerContractTests<B extends Broker>(
 				await waitFor(() => failingDead.messages.length === 1);
 				expect(healthy.events[0].payload).toEqual({ shared: true });
 
-				await sleep(250);
+				await sleep(quietWindow);
 				expect(healthyDead.messages).toHaveLength(0);
 			});
 		}

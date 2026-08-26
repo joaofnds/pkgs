@@ -20,4 +20,5 @@ brokerContractTests<NatsStreamsBroker>("NatsStreamsBroker", {
 		return broker;
 	},
 	closeBroker: (broker) => broker.close(),
+	quietWindowMs: 3000,
 });
