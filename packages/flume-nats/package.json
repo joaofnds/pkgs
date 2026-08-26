@@ -25,12 +25,15 @@
     "@joaofnds/flume": "workspace:^"
   },
   "peerDependencies": {
-    "nats": "^2.29.0"
+    "@nats-io/jetstream": "^3.4.0",
+    "@nats-io/transport-node": "^3.4.0"
   },
   "devDependencies": {
     "@joaofnds/flume-tck": "workspace:^",
+    "@nats-io/jetstream": "^3.4.0",
+    "@nats-io/nats-core": "^3.4.0",
+    "@nats-io/transport-node": "^3.4.0",
     "@types/node": "^24.13.2",
-    "nats": "^2.29.3",
     "typescript": "^6.0.3"
   }
 }
