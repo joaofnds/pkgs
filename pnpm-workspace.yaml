@@ -1,2 +1,7 @@
 packages:
   - 'packages/*'
+allowBuilds:
+  '@swc/core': false
+  esbuild: false
+  msgpackr-extract: false
+  nx: false
