@@ -48,8 +48,8 @@ export async function ensureConsumer(
 	try {
 		await admin.consumers.info(STREAM, durable);
 		return;
-	} catch {
-		// not found — create it below.
+	} catch (error) {
+		if (!hasApiCode(error, JetStreamApiCodes.ConsumerNotFound)) throw error;
 	}
 
 	await admin.consumers.add(STREAM, {
