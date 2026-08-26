@@ -1,4 +1,3 @@
-import { Events } from "nats";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ConnectionLifecycle, StatusEmitter } from "./connection-lifecycle";
 import { RecordingBrokerProbe } from "./test-support/recording-broker-probe";
@@ -20,7 +19,7 @@ describe(ConnectionLifecycle, () => {
 
 	it("reports disconnected on a disconnect status", async () => {
 		await new ConnectionLifecycle(probe).watch(
-			new FakeConnection([{ type: Events.Disconnect }]),
+			new FakeConnection([{ type: "disconnect" }]),
 		);
 
 		expect(probe.disconnectedCount).toBe(1);
@@ -29,7 +28,7 @@ describe(ConnectionLifecycle, () => {
 
 	it("reports reconnected on a reconnect status", async () => {
 		await new ConnectionLifecycle(probe).watch(
-			new FakeConnection([{ type: Events.Reconnect }]),
+			new FakeConnection([{ type: "reconnect" }]),
 		);
 
 		expect(probe.reconnectedCount).toBe(1);
@@ -38,7 +37,7 @@ describe(ConnectionLifecycle, () => {
 
 	it("ignores statuses that are not connection transitions", async () => {
 		await new ConnectionLifecycle(probe).watch(
-			new FakeConnection([{ type: Events.Update }, { type: Events.LDM }]),
+			new FakeConnection([{ type: "update" }, { type: "ldm" }]),
 		);
 
 		expect(probe.disconnectedCount).toBe(0);

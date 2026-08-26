@@ -1,4 +1,3 @@
-import { Events } from "nats";
 import { BrokerProbe } from "./broker-probe";
 
 export interface StatusEmitter {
@@ -11,11 +10,11 @@ export class ConnectionLifecycle {
 	async watch(source: StatusEmitter): Promise<void> {
 		try {
 			for await (const status of source.status()) {
-				if (status.type === Events.Disconnect) this.probe.disconnected();
-				else if (status.type === Events.Reconnect) this.probe.reconnected();
+				if (status.type === "disconnect") this.probe.disconnected();
+				else if (status.type === "reconnect") this.probe.reconnected();
 			}
 		} catch {
-			// the status stream throws when the connection closes on shutdown — expected
+			// the status stream ends cleanly on close; only a mid-flight connection error throws
 		}
 	}
 }
