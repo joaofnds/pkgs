@@ -39,6 +39,7 @@ jobs:
       - run: pnpm install
       - run: pnpm run check
       - run: pnpm run build
+      - run: pnpm run typecheck
       - run: pnpm run test
       - run: pnpm run version
         if: github.event_name == 'push'

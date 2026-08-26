@@ -10,6 +10,7 @@
 		"check": "biome check .",
 		"lint": "biome check --write --unsafe .",
 		"test": "nx run-many --target=test",
+		"typecheck": "nx run-many --target=typecheck",
 		"version": "nx release --skip-publish",
 		"publish": "nx release publish"
 	},
