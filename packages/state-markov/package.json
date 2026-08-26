@@ -8,6 +8,7 @@
   "description": "a simple state machine that transitions to a new state based on weights",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": ["dist"],
   "keywords": [
     "state",
     "machine",
