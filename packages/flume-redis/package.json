@@ -1,40 +1,40 @@
 {
-	"name": "@joaofnds/flume-redis",
-	"version": "0.1.1",
-	"engines": {
-		"node": ">=24"
-	},
-	"license": "Apache-2.0",
-	"main": "dist/index.js",
-	"types": "dist/index.d.ts",
-	"files": [
-		"dist"
-	],
-	"author": "joaofnds <joaofnds@joaofnds.com>",
-	"repository": {
-		"url": "https://github.com/joaofnds/pkgs.git",
-		"type": "git",
-		"directory": "packages/flume-redis"
-	},
-	"scripts": {
-		"prebuild": "rm -rf dist",
-		"build": "tsc --build",
-		"typecheck": "tsc -p tsconfig.test.json",
-		"pretest": "pnpm run typecheck && docker compose up -d",
-		"test": "vitest run",
-		"posttest": "docker compose down"
-	},
-	"dependencies": {
-		"@joaofnds/flume": "workspace:^",
-		"@joaofnds/throughput": "workspace:^"
-	},
-	"peerDependencies": {
-		"redis": "^6.0.0"
-	},
-	"devDependencies": {
-		"@joaofnds/flume-tck": "workspace:^",
-		"@types/node": "^24.13.2",
-		"redis": "^6.2.1",
-		"typescript": "^6.0.3"
-	}
+  "name": "@joaofnds/flume-redis",
+  "version": "0.1.2",
+  "engines": {
+    "node": ">=24"
+  },
+  "license": "Apache-2.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "author": "joaofnds <joaofnds@joaofnds.com>",
+  "repository": {
+    "url": "https://github.com/joaofnds/pkgs.git",
+    "type": "git",
+    "directory": "packages/flume-redis"
+  },
+  "scripts": {
+    "prebuild": "rm -rf dist",
+    "build": "tsc --build",
+    "typecheck": "tsc -p tsconfig.test.json",
+    "pretest": "pnpm run typecheck && docker compose up -d",
+    "test": "vitest run",
+    "posttest": "docker compose down"
+  },
+  "dependencies": {
+    "@joaofnds/flume": "workspace:^",
+    "@joaofnds/throughput": "workspace:^"
+  },
+  "peerDependencies": {
+    "redis": "^6.0.0"
+  },
+  "devDependencies": {
+    "@joaofnds/flume-tck": "workspace:^",
+    "@types/node": "^24.13.2",
+    "redis": "^6.2.1",
+    "typescript": "^6.0.3"
+  }
 }
