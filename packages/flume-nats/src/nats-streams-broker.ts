@@ -9,14 +9,16 @@ import {
 import {
 	AckPolicy,
 	ConsumerMessages,
-	connect,
 	DeliverPolicy,
 	JetStreamClient,
 	JetStreamManager,
 	JsMsg,
-	NatsConnection,
+	jetstream,
+	jetstreamManager,
 	RetentionPolicy,
-} from "nats";
+} from "@nats-io/jetstream";
+import { NatsConnection } from "@nats-io/nats-core";
+import { connect } from "@nats-io/transport-node";
 import { BrokerNotConnectedError } from "./broker-not-connected-error";
 import { BrokerProbe } from "./broker-probe";
 import { ConnectionLifecycle } from "./connection-lifecycle";
@@ -53,8 +55,8 @@ export class NatsStreamsBroker implements Broker {
 
 	async connect(): Promise<void> {
 		const nc = await connect({ noAsyncTraces: true, ...this.options.nats });
-		const jsm = await nc.jetstreamManager();
-		this.connection = { nc, js: nc.jetstream(), jsm };
+		const jsm = await jetstreamManager(nc);
+		this.connection = { nc, js: jetstream(nc), jsm };
 		this.probe.connected();
 		void new ConnectionLifecycle(this.probe).watch(nc);
 	}
@@ -112,7 +114,7 @@ export class NatsStreamsBroker implements Broker {
 				}
 			}
 		} catch {
-			// the iterator throws when the connection closes on shutdown — expected.
+			// the iterator ends cleanly on close; only a mid-flight connection error throws.
 		}
 		await Promise.allSettled(inFlight);
 	}
