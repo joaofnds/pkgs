@@ -37,6 +37,6 @@
     "@nats-io/nats-core": "^3.4.0",
     "@nats-io/transport-node": "^3.4.0",
     "@types/node": "^24.13.2",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   }
 }
