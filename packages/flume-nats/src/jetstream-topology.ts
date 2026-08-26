@@ -3,6 +3,8 @@ import {
 	AckPolicy,
 	ConsumerConfig,
 	DeliverPolicy,
+	JetStreamApiCodes,
+	JetStreamApiError,
 	RetentionPolicy,
 	StreamConfig,
 } from "@nats-io/jetstream";
@@ -19,10 +21,16 @@ export interface JetStreamAdmin {
 	};
 }
 
+function hasApiCode(error: unknown, code: number): boolean {
+	return error instanceof JetStreamApiError && error.code === code;
+}
+
 export async function ensureStream(admin: JetStreamAdmin): Promise<void> {
 	try {
 		await admin.streams.info(STREAM);
-	} catch {
+	} catch (error) {
+		if (!hasApiCode(error, JetStreamApiCodes.StreamNotFound)) throw error;
+
 		await admin.streams.add({
 			name: STREAM,
 			subjects: STREAM_SUBJECTS,
