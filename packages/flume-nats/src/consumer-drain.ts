@@ -21,6 +21,7 @@ export class ConsumerDrain {
 		deliver: (msg: DeliveredMessage) => Promise<void>,
 	): Promise<void> {
 		const inFlight = new Set<Promise<void>>();
+
 		try {
 			for await (const msg of source) {
 				const task = this.handle(msg, topic, deliver);
@@ -31,13 +32,12 @@ export class ConsumerDrain {
 				}
 			}
 		} catch (error) {
-			// closing with work in flight throws ClosedConnectionError into the
-			// iterator; idle, it ends cleanly. unhandled, either throw would surface
-			// as a rejection out of the un-awaited drain().
+			// never rethrown: drain() is un-awaited, so a rethrow becomes an unhandled rejection
 			if (!isExpectedShutdown(error)) {
 				this.probe.consumerStopped(subjectFor(topic.name), durable, error);
 			}
 		}
+
 		await Promise.allSettled(inFlight);
 	}
 
