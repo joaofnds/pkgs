@@ -129,7 +129,12 @@ describe(ensureConsumer, () => {
 			}),
 		);
 
-		await ensureConsumer(admin, "orders__workers", subscription("orders"), 5000);
+		await ensureConsumer(
+			admin,
+			"orders__workers",
+			subscription("orders"),
+			5000,
+		);
 
 		expect(admin.addedConsumers).toEqual([
 			{
@@ -144,7 +149,12 @@ describe(ensureConsumer, () => {
 	});
 
 	it("leaves an existing consumer alone", async () => {
-		await ensureConsumer(admin, "orders__workers", subscription("orders"), 5000);
+		await ensureConsumer(
+			admin,
+			"orders__workers",
+			subscription("orders"),
+			5000,
+		);
 
 		expect(admin.addedConsumers).toEqual([]);
 	});
