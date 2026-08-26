@@ -1,5 +1,6 @@
 import { Topic } from "@joaofnds/flume";
 import { JsMsg } from "@nats-io/jetstream";
+import { ClosedConnectionError } from "@nats-io/nats-core";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ConsumerDrain } from "./consumer-drain";
 import { subjectFor } from "./subject";
@@ -81,5 +82,31 @@ describe(ConsumerDrain, () => {
 		expect(probe.consumerStoppedCalls).toEqual([
 			{ subject: subjectFor(TOPIC.name), durable: DURABLE, error: failure },
 		]);
+	});
+
+	it("reports no consumer stop when the source ends cleanly", async () => {
+		await new ConsumerDrain(probe, CONCURRENCY).drain(
+			sourceOf(message(1)),
+			TOPIC,
+			DURABLE,
+			async () => {},
+		);
+
+		expect(probe.consumerStoppedCalls).toEqual([]);
+	});
+
+	it("reports no consumer stop when the connection closes", async () => {
+		await new ConsumerDrain(probe, CONCURRENCY).drain(
+			sourceFailingWith(new ClosedConnectionError(), message(1)),
+			TOPIC,
+			DURABLE,
+			async () => {},
+		);
+
+		expect(probe.consumerStoppedCalls).toEqual([]);
+	});
+
+	it("pins the error name an expected shutdown carries", () => {
+		expect(new ClosedConnectionError().name).toBe("ClosedConnectionError");
 	});
 });
