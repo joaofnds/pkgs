@@ -65,6 +65,9 @@ Confirmed publishes keep their JetStream PubAck, so durability is unchanged. Tog
 fire-and-forget acks this puts throughput within ~1–1.6× of the Redis adapter (see
 `@joaofnds/flume-bench`), up from ~21× slower.
 
+Those figures were measured on the deprecated `nats` v2 client, before the `@nats-io/*` v3
+port; the sweep has not been re-run on v3.
+
 ## Capabilities
 
 It passes the `@joaofnds/flume-tck` broker contract for `redelivery`,
