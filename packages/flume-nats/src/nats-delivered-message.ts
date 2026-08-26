@@ -1,5 +1,5 @@
 import { Bytes, DeliveredMessage, Topic } from "@joaofnds/flume";
-import { JsMsg } from "nats";
+import { JsMsg } from "@nats-io/jetstream";
 
 export class NatsDeliveredMessage implements DeliveredMessage {
 	readonly topic: Topic;
@@ -16,8 +16,8 @@ export class NatsDeliveredMessage implements DeliveredMessage {
 		// identity for the whole at-least-once lifecycle (dead-letter originalId).
 		this.id = String(msg.seq);
 		this.body = msg.data;
-		// redeliveryCount is 1 on the first delivery, broker-tracked on every redelivery.
-		this.deliveryCount = msg.info.redeliveryCount;
+		// deliveryCount is 1 on the first delivery, broker-tracked on every redelivery.
+		this.deliveryCount = msg.info.deliveryCount;
 	}
 
 	async ack(): Promise<void> {
