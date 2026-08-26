@@ -1,8 +1,8 @@
 import { hostname } from "node:os";
-import { ConnectionOptions } from "nats";
+import { NodeConnectionOptions } from "@nats-io/transport-node";
 
 export interface NatsBrokerOptions {
-	readonly nats: ConnectionOptions;
+	readonly nats: NodeConnectionOptions;
 	// identity of a broadcast group per instance (default {host}:{pid}).
 	readonly instanceId?: string;
 	// max in-flight messages a consumer pulls at a time.
@@ -12,7 +12,7 @@ export interface NatsBrokerOptions {
 }
 
 export interface ResolvedNatsOptions {
-	readonly nats: ConnectionOptions;
+	readonly nats: NodeConnectionOptions;
 	readonly instanceId: string;
 	readonly readCount: number;
 	readonly ackWait: number;
