@@ -26,9 +26,9 @@
   "dependencies": {
     "@nestjs/common": "^11.2.3",
     "@nestjs/event-emitter": "^3.1.0",
-    "bullmq": "^5.78.1",
+    "bullmq": "^6.2.2",
     "eventemitter2": "^6.4.9",
-    "ioredis": "^5.11.1"
+    "ioredis": "^6.0.0"
   },
   "devDependencies": {
     "@nestjs/core": "^11.2.3",

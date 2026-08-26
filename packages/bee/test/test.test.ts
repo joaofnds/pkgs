@@ -55,13 +55,13 @@ describe(BeeModule.name, () => {
 		await emitter.emit({ bar: "baz" });
 		await emitter.emit({ baz: "qux" });
 
-		expect(await queue.getJobs("paused")).not.toHaveLength(0);
+		expect(await queue.getWaitingCount()).toBeGreaterThan(0);
 		expect(listenerOne.receivedEvents.length).toBe(0);
 		expect(listenerTwo.receivedEvents.length).toBe(0);
 
 		await testing.drainQueue(queue);
 
-		expect(await queue.getJobs("paused")).toHaveLength(0);
+		expect(await queue.getWaitingCount()).toBe(0);
 		expect(listenerOne.receivedEvents.length).toBeGreaterThan(0);
 		expect(listenerTwo.receivedEvents.length).toBeGreaterThan(0);
 	});

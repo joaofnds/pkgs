@@ -1,6 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { JobsOptions, WorkerOptions } from "bullmq";
-import { RedisOptions } from "ioredis";
+import { JobsOptions, RedisOptions, WorkerOptions } from "bullmq";
 
 type BeeConfigConstructorParams = Partial<
 	Pick<
