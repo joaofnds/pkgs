@@ -73,6 +73,7 @@ export class NatsStreamsBroker implements Broker {
 		if (this.connection) {
 			await this.connection.nc.close();
 			this.connection = undefined;
+			this.streamReady = false;
 		}
 	}
 
