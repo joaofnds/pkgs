@@ -2,6 +2,11 @@ import { DeliveredMessage, Topic } from "@joaofnds/flume";
 import { JsMsg } from "@nats-io/jetstream";
 import { BrokerProbe } from "./broker-probe";
 import { NatsDeliveredMessage } from "./nats-delivered-message";
+import { subjectFor } from "./subject";
+
+function isExpectedShutdown(error: unknown): boolean {
+	return error instanceof Error && error.name === "ClosedConnectionError";
+}
 
 export class ConsumerDrain {
 	constructor(
@@ -25,10 +30,13 @@ export class ConsumerDrain {
 					await Promise.race(inFlight);
 				}
 			}
-		} catch {
+		} catch (error) {
 			// closing with work in flight throws ClosedConnectionError into the
-			// iterator; idle, it ends cleanly. unhandled, that throw would surface
+			// iterator; idle, it ends cleanly. unhandled, either throw would surface
 			// as a rejection out of the un-awaited drain().
+			if (!isExpectedShutdown(error)) {
+				this.probe.consumerStopped(subjectFor(topic.name), durable, error);
+			}
 		}
 		await Promise.allSettled(inFlight);
 	}

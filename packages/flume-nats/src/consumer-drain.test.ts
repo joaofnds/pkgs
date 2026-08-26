@@ -2,6 +2,7 @@ import { Topic } from "@joaofnds/flume";
 import { JsMsg } from "@nats-io/jetstream";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ConsumerDrain } from "./consumer-drain";
+import { subjectFor } from "./subject";
 import { RecordingBrokerProbe } from "./test-support/recording-broker-probe";
 
 const TOPIC = new Topic("orders");
@@ -20,6 +21,14 @@ function message(seq: number): JsMsg {
 
 async function* sourceOf(...messages: JsMsg[]): AsyncIterable<JsMsg> {
 	for (const msg of messages) yield msg;
+}
+
+async function* sourceFailingWith(
+	error: unknown,
+	...messages: JsMsg[]
+): AsyncIterable<JsMsg> {
+	for (const msg of messages) yield msg;
+	throw error;
 }
 
 describe(ConsumerDrain, () => {
@@ -56,5 +65,21 @@ describe(ConsumerDrain, () => {
 		);
 
 		expect(probe.deliveryFailures).toHaveLength(2);
+		expect(probe.consumerStoppedCalls).toEqual([]);
+	});
+
+	it("reports a source failure as a consumer stop", async () => {
+		const failure = new Error("permission violation");
+
+		await new ConsumerDrain(probe, CONCURRENCY).drain(
+			sourceFailingWith(failure, message(1)),
+			TOPIC,
+			DURABLE,
+			async () => {},
+		);
+
+		expect(probe.consumerStoppedCalls).toEqual([
+			{ subject: subjectFor(TOPIC.name), durable: DURABLE, error: failure },
+		]);
 	});
 });
