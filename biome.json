@@ -14,5 +14,11 @@
 			"style": { "useImportType": "off" }
 		}
 	},
-	"formatter": { "enabled": true }
+	"formatter": { "enabled": true },
+	"overrides": [
+		{
+			"includes": ["packages/*/package.json"],
+			"formatter": { "indentStyle": "space", "indentWidth": 2 }
+		}
+	]
 }
