@@ -48,6 +48,16 @@ externalize it:
 test: { server: { deps: { inline: [/@joaofnds\/flume-tck/] } } }
 ```
 
+### The quiet window
+
+Three behaviors assert that *nothing further* arrives, so each waits before concluding:
+exactly-once processing, sibling-handler isolation, and no delivery after `stop()`. That
+wait is `quietWindowMs`, default **250**. Raise it above your adapter's redelivery window,
+or a dropped ack redelivers only after the assertion has already passed and the suite
+never sees it. `@joaofnds/flume-nats` configures `ackWait: 2000`, so it passes
+`quietWindowMs: 3000`; `@joaofnds/flume-redis` reclaims within about 100 ms and keeps the
+default.
+
 ## What it covers
 
 The suite asserts **observable port behavior** — never broker internals. It drives the
@@ -57,7 +67,8 @@ introspection. Adapter-internal mechanics (Redis PEL, reclaim cursors, NATS ack_
 stay in the adapter's own tests.
 
 Always-run behaviors: fresh delivery with `deliveryCount` 1, non-UTF-8 round-trip,
-exactly-once processing, `startFrom:"new"`, and competing-consumer load balancing.
+exactly-once processing, `startFrom:"new"`, competing-consumer load balancing, and no
+further delivery once the `RunningConsumer` returned by `consume()` is stopped.
 
 Capability-gated behaviors (a broker declares what it supports; the rest are skipped):
 
