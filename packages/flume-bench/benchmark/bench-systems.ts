@@ -11,8 +11,10 @@ import {
 } from "@joaofnds/flume";
 import { NatsStreamsBroker } from "@joaofnds/flume-nats";
 import { RedisStreamsBroker } from "@joaofnds/flume-redis";
+import { jetstreamManager } from "@nats-io/jetstream";
+import { NatsConnection } from "@nats-io/nats-core";
+import { connect } from "@nats-io/transport-node";
 import { Worker as BullWorker, Job, Queue } from "bullmq";
-import { connect, NatsConnection } from "nats";
 import { createClient } from "redis";
 
 export interface Variant {
@@ -278,7 +280,7 @@ export class NatsSystem implements BenchSystem {
 		// Bound the stream like the Flume system trims its Redis stream — acked
 		// JetStream messages persist until purged, so without this the stream grows
 		// across mitata iterations. Bench hygiene, not adapter behavior.
-		const jsm = await this.nc.jetstreamManager();
+		const jsm = await jetstreamManager(this.nc);
 		await jsm.streams
 			.purge(NATS_STREAM, { filter: this.subject, keep: 1000 })
 			.catch(() => {});
