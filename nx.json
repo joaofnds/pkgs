@@ -33,6 +33,10 @@
 			"currentVersionResolverMetadata": {
 				"registry": "https://npm.pkg.github.com"
 			}
+		},
+		"git": {
+			"commit": true,
+			"tag": true
 		}
 	},
 	"analytics": false

@@ -41,4 +41,9 @@ jobs:
       - run: pnpm run build
       - run: pnpm run test
       - run: pnpm run version
+        if: github.event_name == 'push'
       - run: pnpm run publish
+        if: github.event_name == 'push'
+      - name: push the release commit and tags
+        if: github.event_name == 'push'
+        run: git push --follow-tags
