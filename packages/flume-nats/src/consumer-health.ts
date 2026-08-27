@@ -63,20 +63,54 @@ export class ConsumerHealth {
 	): Promise<void> {
 		const states = new Map<string, ReasonState>();
 
-		// the body never awaits: the status listener is an unbounded queue, and
-		// only a synchronous body keeps it shallow
-		for await (const notification of source) {
-			// a type the library sends but does not declare must not throw in
-			// here: that would end health reporting for the process lifetime
-			const verdict = VERDICTS[notification.type] ?? IGNORED;
-			if (verdict.kind === "ignored") continue;
+		try {
+			// the body never awaits: the status listener is an unbounded queue,
+			// and only a synchronous body keeps it shallow
+			for await (const notification of source) {
+				// a type the library sends but does not declare must not throw in
+				// here: that would end health reporting for the process lifetime
+				const verdict = VERDICTS[notification.type] ?? IGNORED;
+				if (verdict.kind === "ignored") continue;
 
-			const state = this.stateFor(states, verdict);
-			state.suppressed += 1;
-			state.consecutive = consecutiveOf(notification);
-			if (this.due(state)) this.emit(state, subject, durable);
+				const state = this.stateFor(states, verdict);
+				state.suppressed += 1;
+				state.consecutive = consecutiveOf(notification);
+				if (this.due(state)) this.emit(state, subject, durable);
+			}
+
+			this.flush(states, subject, durable);
+		} catch {
+			this.reportWatchFailure(states, subject, durable);
 		}
+	}
 
+	// health reporting for this consumer is over once the loop throws, which is
+	// this card's own silent-death mode one level up, so it is reported rather
+	// than swallowed. Never rethrown: watch() is un-awaited.
+	private reportWatchFailure(
+		states: Map<string, ReasonState>,
+		subject: string,
+		durable: string,
+	): void {
+		try {
+			this.flush(states, subject, durable);
+			this.probe.consumerDegraded({
+				subject,
+				durable,
+				reason: "status_watch_failed",
+				occurrences: 1,
+			});
+		} catch {
+			// a probe implementation that throws must not become an unhandled
+			// rejection either
+		}
+	}
+
+	private flush(
+		states: Map<string, ReasonState>,
+		subject: string,
+		durable: string,
+	): void {
 		for (const state of states.values()) {
 			if (state.suppressed > 0) this.emit(state, subject, durable);
 		}

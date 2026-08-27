@@ -3,6 +3,7 @@ import { ConsumerNotification } from "@nats-io/jetstream";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ConsumerHealth, REPORT_INTERVAL_MS } from "./consumer-health";
 import { RecordingBrokerProbe } from "./test-support/recording-broker-probe";
+import { ThrowingBrokerProbe } from "./test-support/throwing-broker-probe";
 
 const SUBJECT = "flume.orders";
 const DURABLE = "orders__workers";
@@ -78,6 +79,14 @@ const NO_RESPONDERS: ConsumerNotification = {
 	type: "no_responders",
 	code: 503,
 };
+
+async function* failing(
+	source: AsyncIterable<ConsumerNotification>,
+	error: unknown,
+): AsyncIterable<ConsumerNotification> {
+	yield* source;
+	throw error;
+}
 
 type Step = ConsumerNotification | { advance: number };
 
@@ -246,6 +255,53 @@ describe(ConsumerHealth, () => {
 				occurrences: 1,
 			},
 		]);
+	});
+
+	it("flushes the residue and reports status_watch_failed when the loop throws", async () => {
+		const clock = new FakeClock();
+
+		await new ConsumerHealth(probe, clock).watch(
+			failing(scripted(clock, DELETED, DELETED), new Error("status boom")),
+			SUBJECT,
+			DURABLE,
+		);
+
+		expect(probe.consumerStalledCalls).toEqual([
+			{
+				subject: SUBJECT,
+				durable: DURABLE,
+				reason: "consumer_deleted",
+				occurrences: 1,
+			},
+			{
+				subject: SUBJECT,
+				durable: DURABLE,
+				reason: "consumer_deleted",
+				occurrences: 1,
+			},
+		]);
+		expect(probe.consumerDegradedCalls).toEqual([
+			{
+				subject: SUBJECT,
+				durable: DURABLE,
+				reason: "status_watch_failed",
+				occurrences: 1,
+			},
+		]);
+	});
+
+	it("reports no status_watch_failed when the source ends cleanly", async () => {
+		await new ConsumerHealth(probe).watch(sourceOf(DELETED), SUBJECT, DURABLE);
+
+		expect(probe.consumerDegradedCalls).toEqual([]);
+	});
+
+	it("resolves even when every probe call throws", async () => {
+		const health = new ConsumerHealth(new ThrowingBrokerProbe());
+
+		await expect(
+			health.watch(sourceOf(DELETED, NO_RESPONDERS), SUBJECT, DURABLE),
+		).resolves.toBeUndefined();
 	});
 
 	it.each(ROUTINE)("reports nothing for $type", async (notification) => {
