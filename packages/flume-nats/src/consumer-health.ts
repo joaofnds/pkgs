@@ -66,7 +66,9 @@ export class ConsumerHealth {
 		// the body never awaits: the status listener is an unbounded queue, and
 		// only a synchronous body keeps it shallow
 		for await (const notification of source) {
-			const verdict = VERDICTS[notification.type];
+			// a type the library sends but does not declare must not throw in
+			// here: that would end health reporting for the process lifetime
+			const verdict = VERDICTS[notification.type] ?? IGNORED;
 			if (verdict.kind === "ignored") continue;
 
 			const state = this.stateFor(states, verdict);

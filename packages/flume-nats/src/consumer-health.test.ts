@@ -227,6 +227,26 @@ describe(ConsumerHealth, () => {
 		]);
 	});
 
+	it("ignores a notification type the table does not know", async () => {
+		const unknown = { type: "not_a_real_type" } as unknown as
+			ConsumerNotification;
+
+		await new ConsumerHealth(probe).watch(
+			sourceOf(unknown, DELETED),
+			SUBJECT,
+			DURABLE,
+		);
+
+		expect(probe.consumerStalledCalls).toEqual([
+			{
+				subject: SUBJECT,
+				durable: DURABLE,
+				reason: "consumer_deleted",
+				occurrences: 1,
+			},
+		]);
+	});
+
 	it.each(ROUTINE)("reports nothing for $type", async (notification) => {
 		await new ConsumerHealth(probe).watch(
 			sourceOf(notification),
