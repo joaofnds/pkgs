@@ -26,6 +26,15 @@ const VERDICTS: Record<ConsumerNotification["type"], HealthVerdict> = {
 	ordered_consumer_recreated: IGNORED,
 };
 
+// Only these two notifications carry the library's own consecutive-failure
+// count; the reachable stream_not_found emits { type, name } alone.
+function consecutiveOf(notification: ConsumerNotification): number | undefined {
+	return notification.type === "heartbeats_missed" ||
+		notification.type === "consumer_not_found"
+		? notification.count
+		: undefined;
+}
+
 export class ConsumerHealth {
 	constructor(private readonly probe: BrokerProbe) {}
 
@@ -43,6 +52,7 @@ export class ConsumerHealth {
 					durable,
 					reason: verdict.reason,
 					occurrences: 1,
+					consecutive: consecutiveOf(notification),
 				});
 			} else if (verdict.kind === "degraded") {
 				this.probe.consumerDegraded({

@@ -6,11 +6,33 @@ import { RecordingBrokerProbe } from "./test-support/recording-broker-probe";
 const SUBJECT = "flume.orders";
 const DURABLE = "orders__workers";
 
-const STALLING: ConsumerNotification[] = [
-	{ type: "consumer_deleted", code: 409, description: "consumer deleted" },
-	{ type: "consumer_not_found", name: DURABLE, stream: "flume", count: 1 },
-	{ type: "stream_not_found", name: "flume" },
-	{ type: "heartbeats_missed", count: 2 },
+interface StallCase {
+	notification: ConsumerNotification;
+	consecutive?: number;
+}
+
+// consecutive is the library's own consecutive-failure count. Only
+// heartbeats_missed and consumer_not_found carry one; the reachable
+// stream_not_found emits { type, name } alone.
+const STALLING: StallCase[] = [
+	{
+		notification: {
+			type: "consumer_deleted",
+			code: 409,
+			description: "consumer deleted",
+		},
+	},
+	{
+		notification: {
+			type: "consumer_not_found",
+			name: DURABLE,
+			stream: "flume",
+			count: 1,
+		},
+		consecutive: 1,
+	},
+	{ notification: { type: "stream_not_found", name: "flume" } },
+	{ notification: { type: "heartbeats_missed", count: 2 }, consecutive: 2 },
 ];
 
 const DEGRADING: ConsumerNotification[] = [
@@ -53,8 +75,8 @@ describe(ConsumerHealth, () => {
 	});
 
 	it.each(STALLING)(
-		"reports $type as a consumer stall",
-		async (notification) => {
+		"reports $notification.type as a consumer stall",
+		async ({ notification, consecutive }) => {
 			await new ConsumerHealth(probe).watch(
 				sourceOf(notification),
 				SUBJECT,
@@ -67,6 +89,7 @@ describe(ConsumerHealth, () => {
 					durable: DURABLE,
 					reason: notification.type,
 					occurrences: 1,
+					consecutive,
 				},
 			]);
 			expect(probe.consumerDegradedCalls).toEqual([]);
