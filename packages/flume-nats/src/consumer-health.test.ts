@@ -1,6 +1,14 @@
+import { Clock } from "@joaofnds/flume";
 import { FakeClock } from "@joaofnds/flume/testing";
 import { ConsumerNotification } from "@nats-io/jetstream";
 import { beforeEach, describe, expect, it } from "vitest";
+import {
+	BrokerProbe,
+	ConsumerDegradation,
+	ConsumerStall,
+	DegradationReason,
+	StallReason,
+} from "./broker-probe";
 import { ConsumerHealth, REPORT_INTERVAL_MS } from "./consumer-health";
 import { RecordingBrokerProbe } from "./test-support/recording-broker-probe";
 import { ThrowingBrokerProbe } from "./test-support/throwing-broker-probe";
@@ -8,22 +16,28 @@ import { ThrowingBrokerProbe } from "./test-support/throwing-broker-probe";
 const SUBJECT = "flume.orders";
 const DURABLE = "orders__workers";
 
+const DELETED: ConsumerNotification = {
+	type: "consumer_deleted",
+	code: 409,
+	description: "consumer deleted",
+};
+
+const NO_RESPONDERS: ConsumerNotification = {
+	type: "no_responders",
+	code: 503,
+};
+
 interface StallCase {
 	notification: ConsumerNotification;
+	reason: StallReason;
+	// the library's own consecutive-failure count. Only heartbeats_missed and
+	// consumer_not_found carry one; the reachable stream_not_found emits
+	// { type, name } alone.
 	consecutive?: number;
 }
 
-// consecutive is the library's own consecutive-failure count. Only
-// heartbeats_missed and consumer_not_found carry one; the reachable
-// stream_not_found emits { type, name } alone.
 const STALLING: StallCase[] = [
-	{
-		notification: {
-			type: "consumer_deleted",
-			code: 409,
-			description: "consumer deleted",
-		},
-	},
+	{ notification: DELETED, reason: "consumer_deleted" },
 	{
 		notification: {
 			type: "consumer_not_found",
@@ -31,15 +45,35 @@ const STALLING: StallCase[] = [
 			stream: "flume",
 			count: 1,
 		},
+		reason: "consumer_not_found",
 		consecutive: 1,
 	},
-	{ notification: { type: "stream_not_found", name: "flume" } },
-	{ notification: { type: "heartbeats_missed", count: 2 }, consecutive: 2 },
+	{
+		notification: { type: "stream_not_found", name: "flume" },
+		reason: "stream_not_found",
+	},
+	{
+		notification: { type: "heartbeats_missed", count: 2 },
+		reason: "heartbeats_missed",
+		consecutive: 2,
+	},
 ];
 
-const DEGRADING: ConsumerNotification[] = [
-	{ type: "no_responders", code: 503 },
-	{ type: "exceeded_limits", code: 409, description: "max waiting" },
+interface DegradationCase {
+	notification: ConsumerNotification;
+	reason: DegradationReason;
+}
+
+const DEGRADING: DegradationCase[] = [
+	{ notification: NO_RESPONDERS, reason: "no_responders" },
+	{
+		notification: {
+			type: "exceeded_limits",
+			code: 409,
+			description: "max waiting",
+		},
+		reason: "exceeded_limits",
+	},
 ];
 
 const ROUTINE: ConsumerNotification[] = [
@@ -63,22 +97,40 @@ const ROUTINE: ConsumerNotification[] = [
 	{ type: "ordered_consumer_recreated", name: DURABLE },
 ];
 
+function stall(
+	reason: StallReason,
+	occurrences: number,
+	consecutive?: number,
+): ConsumerStall {
+	return {
+		subject: SUBJECT,
+		durable: DURABLE,
+		reason,
+		occurrences,
+		consecutive,
+	};
+}
+
+function degradation(
+	reason: DegradationReason,
+	occurrences: number,
+): ConsumerDegradation {
+	return { subject: SUBJECT, durable: DURABLE, reason, occurrences };
+}
+
+function watch(
+	probe: BrokerProbe,
+	source: AsyncIterable<ConsumerNotification>,
+	clock?: Clock,
+): Promise<void> {
+	return new ConsumerHealth(probe, clock).watch(source, SUBJECT, DURABLE);
+}
+
 async function* sourceOf(
 	...notifications: ConsumerNotification[]
 ): AsyncIterable<ConsumerNotification> {
 	for (const notification of notifications) yield notification;
 }
-
-const DELETED: ConsumerNotification = {
-	type: "consumer_deleted",
-	code: 409,
-	description: "consumer deleted",
-};
-
-const NO_RESPONDERS: ConsumerNotification = {
-	type: "no_responders",
-	code: 503,
-};
 
 async function* failing(
 	source: AsyncIterable<ConsumerNotification>,
@@ -110,52 +162,39 @@ describe(ConsumerHealth, () => {
 	});
 
 	it.each(STALLING)(
-		"reports $notification.type as a consumer stall",
-		async ({ notification, consecutive }) => {
-			await new ConsumerHealth(probe).watch(
-				sourceOf(notification),
-				SUBJECT,
-				DURABLE,
-			);
+		"reports $reason as a consumer stall",
+		async ({ notification, reason, consecutive }) => {
+			await watch(probe, sourceOf(notification));
 
 			expect(probe.consumerStalledCalls).toEqual([
-				{
-					subject: SUBJECT,
-					durable: DURABLE,
-					reason: notification.type,
-					occurrences: 1,
-					consecutive,
-				},
+				stall(reason, 1, consecutive),
 			]);
 			expect(probe.consumerDegradedCalls).toEqual([]);
 		},
 	);
 
 	it.each(DEGRADING)(
-		"reports $type as a consumer degradation",
-		async (notification) => {
-			await new ConsumerHealth(probe).watch(
-				sourceOf(notification),
-				SUBJECT,
-				DURABLE,
-			);
+		"reports $reason as a consumer degradation",
+		async ({ notification, reason }) => {
+			await watch(probe, sourceOf(notification));
 
-			expect(probe.consumerDegradedCalls).toEqual([
-				{
-					subject: SUBJECT,
-					durable: DURABLE,
-					reason: notification.type,
-					occurrences: 1,
-				},
-			]);
+			expect(probe.consumerDegradedCalls).toEqual([degradation(reason, 1)]);
 			expect(probe.consumerStalledCalls).toEqual([]);
 		},
 	);
 
+	it.each(ROUTINE)("reports nothing for $type", async (notification) => {
+		await watch(probe, sourceOf(notification));
+
+		expect(probe.consumerStalledCalls).toEqual([]);
+		expect(probe.consumerDegradedCalls).toEqual([]);
+	});
+
 	it("emits once per reason per report interval, counting the suppressed arrivals", async () => {
 		const clock = new FakeClock();
 
-		await new ConsumerHealth(probe, clock).watch(
+		await watch(
+			probe,
 			scripted(
 				clock,
 				DELETED,
@@ -164,75 +203,34 @@ describe(ConsumerHealth, () => {
 				{ advance: REPORT_INTERVAL_MS },
 				DELETED,
 			),
-			SUBJECT,
-			DURABLE,
+			clock,
 		);
 
 		expect(probe.consumerStalledCalls).toEqual([
-			{
-				subject: SUBJECT,
-				durable: DURABLE,
-				reason: "consumer_deleted",
-				occurrences: 1,
-			},
-			{
-				subject: SUBJECT,
-				durable: DURABLE,
-				reason: "consumer_deleted",
-				occurrences: 3,
-			},
+			stall("consumer_deleted", 1),
+			stall("consumer_deleted", 3),
 		]);
 	});
 
 	it("flushes the suppressed residue when the source ends", async () => {
 		const clock = new FakeClock();
 
-		await new ConsumerHealth(probe, clock).watch(
-			scripted(clock, DELETED, DELETED),
-			SUBJECT,
-			DURABLE,
-		);
+		await watch(probe, scripted(clock, DELETED, DELETED), clock);
 
 		expect(probe.consumerStalledCalls).toEqual([
-			{
-				subject: SUBJECT,
-				durable: DURABLE,
-				reason: "consumer_deleted",
-				occurrences: 1,
-			},
-			{
-				subject: SUBJECT,
-				durable: DURABLE,
-				reason: "consumer_deleted",
-				occurrences: 1,
-			},
+			stall("consumer_deleted", 1),
+			stall("consumer_deleted", 1),
 		]);
 	});
 
 	it("bounds each reason on its own schedule", async () => {
 		const clock = new FakeClock();
 
-		await new ConsumerHealth(probe, clock).watch(
-			scripted(clock, DELETED, NO_RESPONDERS),
-			SUBJECT,
-			DURABLE,
-		);
+		await watch(probe, scripted(clock, DELETED, NO_RESPONDERS), clock);
 
-		expect(probe.consumerStalledCalls).toEqual([
-			{
-				subject: SUBJECT,
-				durable: DURABLE,
-				reason: "consumer_deleted",
-				occurrences: 1,
-			},
-		]);
+		expect(probe.consumerStalledCalls).toEqual([stall("consumer_deleted", 1)]);
 		expect(probe.consumerDegradedCalls).toEqual([
-			{
-				subject: SUBJECT,
-				durable: DURABLE,
-				reason: "no_responders",
-				occurrences: 1,
-			},
+			degradation("no_responders", 1),
 		]);
 	});
 
@@ -241,77 +239,38 @@ describe(ConsumerHealth, () => {
 			type: "not_a_real_type",
 		} as unknown as ConsumerNotification;
 
-		await new ConsumerHealth(probe).watch(
-			sourceOf(unknown, DELETED),
-			SUBJECT,
-			DURABLE,
-		);
+		await watch(probe, sourceOf(unknown, DELETED));
 
-		expect(probe.consumerStalledCalls).toEqual([
-			{
-				subject: SUBJECT,
-				durable: DURABLE,
-				reason: "consumer_deleted",
-				occurrences: 1,
-			},
-		]);
+		expect(probe.consumerStalledCalls).toEqual([stall("consumer_deleted", 1)]);
 	});
 
 	it("flushes the residue and reports status_watch_failed when the loop throws", async () => {
 		const clock = new FakeClock();
 
-		await new ConsumerHealth(probe, clock).watch(
+		await watch(
+			probe,
 			failing(scripted(clock, DELETED, DELETED), new Error("status boom")),
-			SUBJECT,
-			DURABLE,
+			clock,
 		);
 
 		expect(probe.consumerStalledCalls).toEqual([
-			{
-				subject: SUBJECT,
-				durable: DURABLE,
-				reason: "consumer_deleted",
-				occurrences: 1,
-			},
-			{
-				subject: SUBJECT,
-				durable: DURABLE,
-				reason: "consumer_deleted",
-				occurrences: 1,
-			},
+			stall("consumer_deleted", 1),
+			stall("consumer_deleted", 1),
 		]);
 		expect(probe.consumerDegradedCalls).toEqual([
-			{
-				subject: SUBJECT,
-				durable: DURABLE,
-				reason: "status_watch_failed",
-				occurrences: 1,
-			},
+			degradation("status_watch_failed", 1),
 		]);
 	});
 
 	it("reports no status_watch_failed when the source ends cleanly", async () => {
-		await new ConsumerHealth(probe).watch(sourceOf(DELETED), SUBJECT, DURABLE);
+		await watch(probe, sourceOf(DELETED));
 
 		expect(probe.consumerDegradedCalls).toEqual([]);
 	});
 
 	it("resolves even when every probe call throws", async () => {
-		const health = new ConsumerHealth(new ThrowingBrokerProbe());
-
 		await expect(
-			health.watch(sourceOf(DELETED, NO_RESPONDERS), SUBJECT, DURABLE),
+			watch(new ThrowingBrokerProbe(), sourceOf(DELETED, NO_RESPONDERS)),
 		).resolves.toBeUndefined();
-	});
-
-	it.each(ROUTINE)("reports nothing for $type", async (notification) => {
-		await new ConsumerHealth(probe).watch(
-			sourceOf(notification),
-			SUBJECT,
-			DURABLE,
-		);
-
-		expect(probe.consumerStalledCalls).toEqual([]);
-		expect(probe.consumerDegradedCalls).toEqual([]);
 	});
 });
