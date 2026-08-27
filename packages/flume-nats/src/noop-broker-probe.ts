@@ -6,4 +6,6 @@ export class NoopBrokerProbe implements BrokerProbe {
 	reconnected(): void {}
 	deliveryFailed(): void {}
 	consumerStopped(): void {}
+	consumerStalled(): void {}
+	consumerDegraded(): void {}
 }

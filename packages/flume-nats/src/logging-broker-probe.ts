@@ -1,5 +1,10 @@
 import { ConsoleProbeLogger, ProbeLogger } from "@joaofnds/flume";
-import { BrokerProbe, ConsumerStop } from "./broker-probe";
+import {
+	BrokerProbe,
+	ConsumerDegradation,
+	ConsumerStall,
+	ConsumerStop,
+} from "./broker-probe";
 
 export class LoggingBrokerProbe implements BrokerProbe {
 	constructor(
@@ -31,6 +36,10 @@ export class LoggingBrokerProbe implements BrokerProbe {
 			error: this.reason(stop.error),
 		});
 	}
+
+	consumerStalled(_stall: ConsumerStall): void {}
+
+	consumerDegraded(_degradation: ConsumerDegradation): void {}
 
 	private reason(error: unknown): string {
 		return error instanceof Error ? error.message : String(error);

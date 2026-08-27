@@ -24,6 +24,18 @@ describe(GuardedBrokerProbe, () => {
 			durable: "orders__workers",
 			error: stopped,
 		});
+		probe.consumerStalled({
+			subject: "flume.orders",
+			durable: "orders__workers",
+			reason: "consumer_deleted",
+			occurrences: 1,
+		});
+		probe.consumerDegraded({
+			subject: "flume.orders",
+			durable: "orders__workers",
+			reason: "no_responders",
+			occurrences: 1,
+		});
 
 		expect(delegate.connectedCount).toBe(1);
 		expect(delegate.disconnectedCount).toBe(1);
@@ -34,6 +46,22 @@ describe(GuardedBrokerProbe, () => {
 				subject: "flume.orders",
 				durable: "orders__workers",
 				error: stopped,
+			},
+		]);
+		expect(delegate.consumerStalledCalls).toEqual([
+			{
+				subject: "flume.orders",
+				durable: "orders__workers",
+				reason: "consumer_deleted",
+				occurrences: 1,
+			},
+		]);
+		expect(delegate.consumerDegradedCalls).toEqual([
+			{
+				subject: "flume.orders",
+				durable: "orders__workers",
+				reason: "no_responders",
+				occurrences: 1,
 			},
 		]);
 	});
@@ -50,6 +78,22 @@ describe(GuardedBrokerProbe, () => {
 				subject: "flume.orders",
 				durable: "orders__workers",
 				error: new Error("x"),
+			}),
+		).not.toThrow();
+		expect(() =>
+			throwing.consumerStalled({
+				subject: "flume.orders",
+				durable: "orders__workers",
+				reason: "consumer_deleted",
+				occurrences: 1,
+			}),
+		).not.toThrow();
+		expect(() =>
+			throwing.consumerDegraded({
+				subject: "flume.orders",
+				durable: "orders__workers",
+				reason: "no_responders",
+				occurrences: 1,
 			}),
 		).not.toThrow();
 	});

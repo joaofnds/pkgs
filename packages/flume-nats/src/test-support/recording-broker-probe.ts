@@ -1,4 +1,9 @@
-import { BrokerProbe, ConsumerStop } from "../broker-probe";
+import {
+	BrokerProbe,
+	ConsumerDegradation,
+	ConsumerStall,
+	ConsumerStop,
+} from "../broker-probe";
 
 export class RecordingBrokerProbe implements BrokerProbe {
 	connectedCount = 0;
@@ -6,6 +11,8 @@ export class RecordingBrokerProbe implements BrokerProbe {
 	reconnectedCount = 0;
 	readonly deliveryFailures: unknown[] = [];
 	readonly consumerStoppedCalls: ConsumerStop[] = [];
+	readonly consumerStalledCalls: ConsumerStall[] = [];
+	readonly consumerDegradedCalls: ConsumerDegradation[] = [];
 
 	connected(): void {
 		this.connectedCount += 1;
@@ -25,5 +32,13 @@ export class RecordingBrokerProbe implements BrokerProbe {
 
 	consumerStopped(stop: ConsumerStop): void {
 		this.consumerStoppedCalls.push(stop);
+	}
+
+	consumerStalled(stall: ConsumerStall): void {
+		this.consumerStalledCalls.push(stall);
+	}
+
+	consumerDegraded(degradation: ConsumerDegradation): void {
+		this.consumerDegradedCalls.push(degradation);
 	}
 }
