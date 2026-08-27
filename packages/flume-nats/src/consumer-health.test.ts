@@ -228,8 +228,9 @@ describe(ConsumerHealth, () => {
 	});
 
 	it("ignores a notification type the table does not know", async () => {
-		const unknown = { type: "not_a_real_type" } as unknown as
-			ConsumerNotification;
+		const unknown = {
+			type: "not_a_real_type",
+		} as unknown as ConsumerNotification;
 
 		await new ConsumerHealth(probe).watch(
 			sourceOf(unknown, DELETED),
