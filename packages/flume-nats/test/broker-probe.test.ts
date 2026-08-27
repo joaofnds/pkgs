@@ -78,24 +78,20 @@ describe("BrokerProbe wiring", () => {
 		});
 	});
 
-	it(
-		"reports a consumer stall when the durable is deleted underneath it",
-		async () => {
-			const broker = await start();
-			const sub = subscription(uniqueTopic(), "h");
-			// the instanceId is unused for a competing subscription
-			const durable = durableFor(sub, "");
-			await broker.consume(sub, async () => {});
+	it("reports a consumer stall when the durable is deleted underneath it", async () => {
+		const broker = await start();
+		const sub = subscription(uniqueTopic(), "h");
+		// the instanceId is unused for a competing subscription
+		const durable = durableFor(sub, "");
+		await broker.consume(sub, async () => {});
 
-			await jsm.consumers.delete(STREAM, durable);
+		await jsm.consumers.delete(STREAM, durable);
 
-			await waitFor(() => probe.consumerStalledCalls.length > 0, {
-				timeout: 30000,
-				message: "a durable deleted server-side should surface via the probe",
-			});
-		},
-		40000,
-	);
+		await waitFor(() => probe.consumerStalledCalls.length > 0, {
+			timeout: 30000,
+			message: "a durable deleted server-side should surface via the probe",
+		});
+	}, 40000);
 
 	it("keeps delivering messages when the broker probe throws", async () => {
 		const broker = await start(new ThrowingBrokerProbe());
