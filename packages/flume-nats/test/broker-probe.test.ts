@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from "node:timers/promises";
 import {
 	DeliveredMessage,
 	DeliveryMode,
@@ -5,7 +6,6 @@ import {
 	Subscription,
 	Topic,
 } from "@joaofnds/flume";
-import { setTimeout as sleep } from "node:timers/promises";
 import { uniqueTopic, waitFor } from "@joaofnds/flume-tck";
 import { JetStreamManager, jetstreamManager } from "@nats-io/jetstream";
 import { NatsConnection } from "@nats-io/nats-core";
