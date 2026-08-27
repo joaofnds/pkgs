@@ -19,6 +19,7 @@ import { BrokerNotConnectedError } from "./broker-not-connected-error";
 import { BrokerProbe } from "./broker-probe";
 import { ConnectionLifecycle } from "./connection-lifecycle";
 import { ConsumerDrain } from "./consumer-drain";
+import { ConsumerHealth } from "./consumer-health";
 import { GuardedBrokerProbe } from "./guarded-broker-probe";
 import { ensureConsumer, ensureStream } from "./jetstream-topology";
 import { NoopBrokerProbe } from "./noop-broker-probe";
@@ -93,7 +94,15 @@ export class NatsStreamsBroker implements Broker {
 		const messages = await consumer.consume({
 			max_messages: this.options.readCount,
 		});
+		// registered before any await: notify() only reaches listeners already
+		// registered, and the initial pull fires from the constructor
+		const status = messages.status();
 		this.running.push(messages);
+		void new ConsumerHealth(this.probe).watch(
+			status,
+			subjectFor(sub.topic.name),
+			durable,
+		);
 		void new ConsumerDrain(this.probe, this.options.readCount).drain(
 			messages,
 			sub.topic,

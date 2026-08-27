@@ -6,8 +6,12 @@ import {
 	Topic,
 } from "@joaofnds/flume";
 import { uniqueTopic, waitFor } from "@joaofnds/flume-tck";
+import { JetStreamManager, jetstreamManager } from "@nats-io/jetstream";
+import { NatsConnection } from "@nats-io/nats-core";
+import { connect } from "@nats-io/transport-node";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BrokerProbe, NatsStreamsBroker } from "../src/index";
+import { durableFor, STREAM } from "../src/subject";
 import { RecordingBrokerProbe } from "../src/test-support/recording-broker-probe";
 import { ThrowingBrokerProbe } from "../src/test-support/throwing-broker-probe";
 
@@ -28,13 +32,18 @@ const encode = (text: string): Uint8Array => new TextEncoder().encode(text);
 describe("BrokerProbe wiring", () => {
 	const open: NatsStreamsBroker[] = [];
 	let probe: RecordingBrokerProbe;
+	let admin: NatsConnection;
+	let jsm: JetStreamManager;
 
-	beforeEach(() => {
+	beforeEach(async () => {
 		probe = new RecordingBrokerProbe();
+		admin = await connect({ servers: NATS_URL });
+		jsm = await jetstreamManager(admin);
 	});
 
 	afterEach(async () => {
 		await Promise.all(open.splice(0).map((broker) => broker.close()));
+		await admin.close();
 	});
 
 	async function start(
@@ -68,6 +77,25 @@ describe("BrokerProbe wiring", () => {
 			message: "a failing delivery should surface via the probe",
 		});
 	});
+
+	it(
+		"reports a consumer stall when the durable is deleted underneath it",
+		async () => {
+			const broker = await start();
+			const sub = subscription(uniqueTopic(), "h");
+			// the instanceId is unused for a competing subscription
+			const durable = durableFor(sub, "");
+			await broker.consume(sub, async () => {});
+
+			await jsm.consumers.delete(STREAM, durable);
+
+			await waitFor(() => probe.consumerStalledCalls.length > 0, {
+				timeout: 30000,
+				message: "a durable deleted server-side should surface via the probe",
+			});
+		},
+		40000,
+	);
 
 	it("keeps delivering messages when the broker probe throws", async () => {
 		const broker = await start(new ThrowingBrokerProbe());
