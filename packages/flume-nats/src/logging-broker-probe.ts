@@ -1,5 +1,5 @@
 import { ConsoleProbeLogger, ProbeLogger } from "@joaofnds/flume";
-import { BrokerProbe } from "./broker-probe";
+import { BrokerProbe, ConsumerStop } from "./broker-probe";
 
 export class LoggingBrokerProbe implements BrokerProbe {
 	constructor(
@@ -24,11 +24,11 @@ export class LoggingBrokerProbe implements BrokerProbe {
 		});
 	}
 
-	consumerStopped(subject: string, durable: string, error: unknown): void {
+	consumerStopped(stop: ConsumerStop): void {
 		this.logger.error("flume.broker.consumer_stopped", {
-			subject,
-			durable,
-			error: this.reason(error),
+			subject: stop.subject,
+			durable: stop.durable,
+			error: this.reason(stop.error),
 		});
 	}
 

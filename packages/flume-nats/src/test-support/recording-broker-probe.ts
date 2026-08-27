@@ -1,17 +1,11 @@
-import { BrokerProbe } from "../broker-probe";
-
-export interface ConsumerStoppedCall {
-	subject: string;
-	durable: string;
-	error: unknown;
-}
+import { BrokerProbe, ConsumerStop } from "../broker-probe";
 
 export class RecordingBrokerProbe implements BrokerProbe {
 	connectedCount = 0;
 	disconnectedCount = 0;
 	reconnectedCount = 0;
 	readonly deliveryFailures: unknown[] = [];
-	readonly consumerStoppedCalls: ConsumerStoppedCall[] = [];
+	readonly consumerStoppedCalls: ConsumerStop[] = [];
 
 	connected(): void {
 		this.connectedCount += 1;
@@ -29,7 +23,7 @@ export class RecordingBrokerProbe implements BrokerProbe {
 		this.deliveryFailures.push(error);
 	}
 
-	consumerStopped(subject: string, durable: string, error: unknown): void {
-		this.consumerStoppedCalls.push({ subject, durable, error });
+	consumerStopped(stop: ConsumerStop): void {
+		this.consumerStoppedCalls.push(stop);
 	}
 }

@@ -34,7 +34,11 @@ export class ConsumerDrain {
 		} catch (error) {
 			// never rethrown: drain() is un-awaited, so a rethrow becomes an unhandled rejection
 			if (!isExpectedShutdown(error)) {
-				this.probe.consumerStopped(subjectFor(topic.name), durable, error);
+				this.probe.consumerStopped({
+					subject: subjectFor(topic.name),
+					durable,
+					error,
+				});
 			}
 		}
 

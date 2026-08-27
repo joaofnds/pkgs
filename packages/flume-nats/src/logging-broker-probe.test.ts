@@ -66,11 +66,11 @@ describe(LoggingBrokerProbe, () => {
 	});
 
 	it("logs a consumer stop at error with the subject, durable and reason", () => {
-		probe.consumerStopped(
-			"flume.orders",
-			"orders__workers",
-			new Error("permission violation"),
-		);
+		probe.consumerStopped({
+			subject: "flume.orders",
+			durable: "orders__workers",
+			error: new Error("permission violation"),
+		});
 
 		expect(logger.lines).toEqual([
 			{

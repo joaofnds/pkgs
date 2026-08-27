@@ -1,4 +1,4 @@
-import { BrokerProbe } from "./broker-probe";
+import { BrokerProbe, ConsumerStop } from "./broker-probe";
 
 export class GuardedBrokerProbe implements BrokerProbe {
 	constructor(private readonly delegate: BrokerProbe) {}
@@ -19,8 +19,8 @@ export class GuardedBrokerProbe implements BrokerProbe {
 		this.guard(() => this.delegate.deliveryFailed(error));
 	}
 
-	consumerStopped(subject: string, durable: string, error: unknown): void {
-		this.guard(() => this.delegate.consumerStopped(subject, durable, error));
+	consumerStopped(stop: ConsumerStop): void {
+		this.guard(() => this.delegate.consumerStopped(stop));
 	}
 
 	private guard(call: () => void): void {

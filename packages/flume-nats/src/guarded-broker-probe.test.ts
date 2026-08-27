@@ -13,21 +13,29 @@ describe(GuardedBrokerProbe, () => {
 	});
 
 	it("forwards every call to the delegate", () => {
+		const stopped = new Error("stopped");
+
 		probe.connected();
 		probe.disconnected();
 		probe.reconnected();
 		probe.deliveryFailed(new Error("deliver boom"));
-		probe.consumerStopped(
-			"flume.orders",
-			"orders__workers",
-			new Error("stopped"),
-		);
+		probe.consumerStopped({
+			subject: "flume.orders",
+			durable: "orders__workers",
+			error: stopped,
+		});
 
 		expect(delegate.connectedCount).toBe(1);
 		expect(delegate.disconnectedCount).toBe(1);
 		expect(delegate.reconnectedCount).toBe(1);
 		expect(delegate.deliveryFailures).toHaveLength(1);
-		expect(delegate.consumerStoppedCalls).toHaveLength(1);
+		expect(delegate.consumerStoppedCalls).toEqual([
+			{
+				subject: "flume.orders",
+				durable: "orders__workers",
+				error: stopped,
+			},
+		]);
 	});
 
 	it("swallows errors thrown by the delegate", () => {
@@ -38,11 +46,11 @@ describe(GuardedBrokerProbe, () => {
 		expect(() => throwing.reconnected()).not.toThrow();
 		expect(() => throwing.deliveryFailed(new Error("x"))).not.toThrow();
 		expect(() =>
-			throwing.consumerStopped(
-				"flume.orders",
-				"orders__workers",
-				new Error("x"),
-			),
+			throwing.consumerStopped({
+				subject: "flume.orders",
+				durable: "orders__workers",
+				error: new Error("x"),
+			}),
 		).not.toThrow();
 	});
 });
