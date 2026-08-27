@@ -5,6 +5,7 @@ import {
 	Subscription,
 	Topic,
 } from "@joaofnds/flume";
+import { setTimeout as sleep } from "node:timers/promises";
 import { uniqueTopic, waitFor } from "@joaofnds/flume-tck";
 import { JetStreamManager, jetstreamManager } from "@nats-io/jetstream";
 import { NatsConnection } from "@nats-io/nats-core";
@@ -92,6 +93,34 @@ describe("BrokerProbe wiring", () => {
 			message: "a durable deleted server-side should surface via the probe",
 		});
 	}, 40000);
+
+	it("reports neither a stall nor a degradation on an intentional stop", async () => {
+		const broker = await start();
+		const topic = uniqueTopic();
+		const received: DeliveredMessage[] = [];
+		const consumer = await broker.consume(
+			subscription(topic, "h"),
+			async (msg) => {
+				received.push(msg);
+				await msg.ack();
+			},
+		);
+		await broker.publish(new Topic(topic), encode("hi"));
+		// prove the consumer and its status watcher were live, so the absence
+		// asserted below is not vacuous
+		await waitFor(() => received.length === 1, {
+			message: "the consumer should be delivering before it is stopped",
+		});
+
+		await consumer.stop();
+		await broker.close();
+
+		// messages.stop() defers each status listener's stop through _push, so a
+		// synchronous assertion here would pass even against a regression
+		await sleep(500);
+		expect(probe.consumerStalledCalls).toEqual([]);
+		expect(probe.consumerDegradedCalls).toEqual([]);
+	});
 
 	it("keeps delivering messages when the broker probe throws", async () => {
 		const broker = await start(new ThrowingBrokerProbe());
