@@ -85,6 +85,52 @@ describe(LoggingBrokerProbe, () => {
 		]);
 	});
 
+	it("logs a consumer stall at error with the reason and both counts", () => {
+		probe.consumerStalled({
+			subject: "flume.orders",
+			durable: "orders__workers",
+			reason: "heartbeats_missed",
+			occurrences: 4,
+			consecutive: 2,
+		});
+
+		expect(logger.lines).toEqual([
+			{
+				level: "error",
+				event: "flume.broker.consumer_stalled",
+				fields: {
+					subject: "flume.orders",
+					durable: "orders__workers",
+					reason: "heartbeats_missed",
+					occurrences: 4,
+					consecutive: 2,
+				},
+			},
+		]);
+	});
+
+	it("logs a consumer degradation at error with the reason", () => {
+		probe.consumerDegraded({
+			subject: "flume.orders",
+			durable: "orders__workers",
+			reason: "no_responders",
+			occurrences: 3,
+		});
+
+		expect(logger.lines).toEqual([
+			{
+				level: "error",
+				event: "flume.broker.consumer_degraded",
+				fields: {
+					subject: "flume.orders",
+					durable: "orders__workers",
+					reason: "no_responders",
+					occurrences: 3,
+				},
+			},
+		]);
+	});
+
 	it("stringifies a non-Error failure reason", () => {
 		probe.deliveryFailed("plain string reason");
 

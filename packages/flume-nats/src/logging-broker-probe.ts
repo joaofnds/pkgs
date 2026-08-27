@@ -37,9 +37,24 @@ export class LoggingBrokerProbe implements BrokerProbe {
 		});
 	}
 
-	consumerStalled(_stall: ConsumerStall): void {}
+	consumerStalled(stall: ConsumerStall): void {
+		this.logger.error("flume.broker.consumer_stalled", {
+			subject: stall.subject,
+			durable: stall.durable,
+			reason: stall.reason,
+			occurrences: stall.occurrences,
+			consecutive: stall.consecutive,
+		});
+	}
 
-	consumerDegraded(_degradation: ConsumerDegradation): void {}
+	consumerDegraded(degradation: ConsumerDegradation): void {
+		this.logger.error("flume.broker.consumer_degraded", {
+			subject: degradation.subject,
+			durable: degradation.durable,
+			reason: degradation.reason,
+			occurrences: degradation.occurrences,
+		});
+	}
 
 	private reason(error: unknown): string {
 		return error instanceof Error ? error.message : String(error);
