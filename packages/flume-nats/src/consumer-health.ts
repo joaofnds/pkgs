@@ -1,10 +1,18 @@
+import { Clock, SystemClock } from "@joaofnds/flume";
 import { ConsumerNotification } from "@nats-io/jetstream";
 import { BrokerProbe, DegradationReason, StallReason } from "./broker-probe";
 
-type HealthVerdict =
+// A status notification is paced by the server, not by flume, so emission is
+// bounded rather than passed straight through. One second is fifteen times
+// faster than the fastest real signal (idle_heartbeat defaults to 15s), so the
+// bound never delays a genuine report.
+export const REPORT_INTERVAL_MS = 1000;
+
+type ReportedVerdict =
 	| { readonly kind: "stalled"; readonly reason: StallReason }
-	| { readonly kind: "degraded"; readonly reason: DegradationReason }
-	| { readonly kind: "ignored" };
+	| { readonly kind: "degraded"; readonly reason: DegradationReason };
+
+type HealthVerdict = ReportedVerdict | { readonly kind: "ignored" };
 
 const IGNORED: HealthVerdict = { kind: "ignored" };
 
@@ -26,6 +34,13 @@ const VERDICTS: Record<ConsumerNotification["type"], HealthVerdict> = {
 	ordered_consumer_recreated: IGNORED,
 };
 
+interface ReasonState {
+	readonly verdict: ReportedVerdict;
+	lastEmittedAt: number;
+	suppressed: number;
+	consecutive?: number;
+}
+
 // Only these two notifications carry the library's own consecutive-failure
 // count; the reachable stream_not_found emits { type, name } alone.
 function consecutiveOf(notification: ConsumerNotification): number | undefined {
@@ -36,32 +51,77 @@ function consecutiveOf(notification: ConsumerNotification): number | undefined {
 }
 
 export class ConsumerHealth {
-	constructor(private readonly probe: BrokerProbe) {}
+	constructor(
+		private readonly probe: BrokerProbe,
+		private readonly clock: Clock = new SystemClock(),
+	) {}
 
 	async watch(
 		source: AsyncIterable<ConsumerNotification>,
 		subject: string,
 		durable: string,
 	): Promise<void> {
+		const states = new Map<string, ReasonState>();
+
+		// the body never awaits: the status listener is an unbounded queue, and
+		// only a synchronous body keeps it shallow
 		for await (const notification of source) {
 			const verdict = VERDICTS[notification.type];
+			if (verdict.kind === "ignored") continue;
 
-			if (verdict.kind === "stalled") {
-				this.probe.consumerStalled({
-					subject,
-					durable,
-					reason: verdict.reason,
-					occurrences: 1,
-					consecutive: consecutiveOf(notification),
-				});
-			} else if (verdict.kind === "degraded") {
-				this.probe.consumerDegraded({
-					subject,
-					durable,
-					reason: verdict.reason,
-					occurrences: 1,
-				});
-			}
+			const state = this.stateFor(states, verdict);
+			state.suppressed += 1;
+			state.consecutive = consecutiveOf(notification);
+			if (this.due(state)) this.emit(state, subject, durable);
+		}
+
+		for (const state of states.values()) {
+			if (state.suppressed > 0) this.emit(state, subject, durable);
+		}
+	}
+
+	private stateFor(
+		states: Map<string, ReasonState>,
+		verdict: ReportedVerdict,
+	): ReasonState {
+		const existing = states.get(verdict.reason);
+		if (existing) return existing;
+
+		const state: ReasonState = {
+			verdict,
+			lastEmittedAt: Number.NEGATIVE_INFINITY,
+			suppressed: 0,
+		};
+		states.set(verdict.reason, state);
+		return state;
+	}
+
+	private due(state: ReasonState): boolean {
+		return (
+			this.clock.now().getTime() - state.lastEmittedAt >= REPORT_INTERVAL_MS
+		);
+	}
+
+	private emit(state: ReasonState, subject: string, durable: string): void {
+		const occurrences = state.suppressed;
+		state.suppressed = 0;
+		state.lastEmittedAt = this.clock.now().getTime();
+
+		if (state.verdict.kind === "stalled") {
+			this.probe.consumerStalled({
+				subject,
+				durable,
+				reason: state.verdict.reason,
+				occurrences,
+				consecutive: state.consecutive,
+			});
+		} else {
+			this.probe.consumerDegraded({
+				subject,
+				durable,
+				reason: state.verdict.reason,
+				occurrences,
+			});
 		}
 	}
 }

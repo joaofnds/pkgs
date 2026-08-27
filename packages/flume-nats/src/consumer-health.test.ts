@@ -1,6 +1,7 @@
+import { FakeClock } from "@joaofnds/flume/testing";
 import { ConsumerNotification } from "@nats-io/jetstream";
 import { beforeEach, describe, expect, it } from "vitest";
-import { ConsumerHealth } from "./consumer-health";
+import { ConsumerHealth, REPORT_INTERVAL_MS } from "./consumer-health";
 import { RecordingBrokerProbe } from "./test-support/recording-broker-probe";
 
 const SUBJECT = "flume.orders";
@@ -67,6 +68,31 @@ async function* sourceOf(
 	for (const notification of notifications) yield notification;
 }
 
+const DELETED: ConsumerNotification = {
+	type: "consumer_deleted",
+	code: 409,
+	description: "consumer deleted",
+};
+
+const NO_RESPONDERS: ConsumerNotification = {
+	type: "no_responders",
+	code: 503,
+};
+
+type Step = ConsumerNotification | { advance: number };
+
+// The clock has to move from inside the generator: watch() is awaited as a
+// whole, so an advance() written after it cannot land between two arrivals.
+async function* scripted(
+	clock: FakeClock,
+	...steps: Step[]
+): AsyncIterable<ConsumerNotification> {
+	for (const step of steps) {
+		if ("advance" in step) clock.advance(step.advance);
+		else yield step;
+	}
+}
+
 describe(ConsumerHealth, () => {
 	let probe: RecordingBrokerProbe;
 
@@ -116,6 +142,90 @@ describe(ConsumerHealth, () => {
 			expect(probe.consumerStalledCalls).toEqual([]);
 		},
 	);
+
+	it("emits once per reason per report interval, counting the suppressed arrivals", async () => {
+		const clock = new FakeClock();
+
+		await new ConsumerHealth(probe, clock).watch(
+			scripted(
+				clock,
+				DELETED,
+				DELETED,
+				DELETED,
+				{ advance: REPORT_INTERVAL_MS },
+				DELETED,
+			),
+			SUBJECT,
+			DURABLE,
+		);
+
+		expect(probe.consumerStalledCalls).toEqual([
+			{
+				subject: SUBJECT,
+				durable: DURABLE,
+				reason: "consumer_deleted",
+				occurrences: 1,
+			},
+			{
+				subject: SUBJECT,
+				durable: DURABLE,
+				reason: "consumer_deleted",
+				occurrences: 3,
+			},
+		]);
+	});
+
+	it("flushes the suppressed residue when the source ends", async () => {
+		const clock = new FakeClock();
+
+		await new ConsumerHealth(probe, clock).watch(
+			scripted(clock, DELETED, DELETED),
+			SUBJECT,
+			DURABLE,
+		);
+
+		expect(probe.consumerStalledCalls).toEqual([
+			{
+				subject: SUBJECT,
+				durable: DURABLE,
+				reason: "consumer_deleted",
+				occurrences: 1,
+			},
+			{
+				subject: SUBJECT,
+				durable: DURABLE,
+				reason: "consumer_deleted",
+				occurrences: 1,
+			},
+		]);
+	});
+
+	it("bounds each reason on its own schedule", async () => {
+		const clock = new FakeClock();
+
+		await new ConsumerHealth(probe, clock).watch(
+			scripted(clock, DELETED, NO_RESPONDERS),
+			SUBJECT,
+			DURABLE,
+		);
+
+		expect(probe.consumerStalledCalls).toEqual([
+			{
+				subject: SUBJECT,
+				durable: DURABLE,
+				reason: "consumer_deleted",
+				occurrences: 1,
+			},
+		]);
+		expect(probe.consumerDegradedCalls).toEqual([
+			{
+				subject: SUBJECT,
+				durable: DURABLE,
+				reason: "no_responders",
+				occurrences: 1,
+			},
+		]);
+	});
 
 	it.each(ROUTINE)("reports nothing for $type", async (notification) => {
 		await new ConsumerHealth(probe).watch(
