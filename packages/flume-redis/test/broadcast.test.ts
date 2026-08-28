@@ -159,9 +159,9 @@ describe("broadcast delivery + group reaper", () => {
 		const crowded = uniqueTopic();
 		const sparse = uniqueTopic();
 		const liveWall = registryGroups("live", 150);
-		const buried = registryGroups("buried", 150);
+		const buried = registryGroups("buried", 300);
 		await using harness = await BrokerHarness.start({
-			reaper: { interval: 100, trim: false },
+			reaper: { interval: 300, trim: false },
 		});
 		for (const group of liveWall) {
 			await harness.seedOrphanBroadcastGroup(crowded, group);
@@ -192,7 +192,7 @@ describe("broadcast delivery + group reaper", () => {
 		const stillBuried = (await harness.registryMembers(crowded)).filter(
 			(member) => buried.includes(member),
 		);
-		expect(stillBuried.length).toBeGreaterThanOrEqual(50);
+		expect(stillBuried.length).toBeGreaterThanOrEqual(100);
 
 		await waitFor(
 			async () => {
