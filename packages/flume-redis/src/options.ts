@@ -1,5 +1,6 @@
 import { hostname } from "node:os";
 import { RedisClientOptions } from "redis";
+import { InvalidIntervalError } from "./invalid-interval-error";
 
 export class InvalidBroadcastOptionsError extends Error {
 	constructor(heartbeatInterval: number, heartbeatTtl: number) {
@@ -70,21 +71,34 @@ export function resolveOptions(
 	options: RedisStreamsBrokerOptions,
 ): ResolvedOptions {
 	const defaultId = `${hostname()}:${process.pid}`;
+	const reclaim = { ...DEFAULT_RECLAIM, ...options.reclaim };
 	const broadcast = { ...DEFAULT_BROADCAST, ...options.broadcast };
+	const reaper = { ...DEFAULT_REAPER, ...options.reaper };
+
+	requireInterval("reclaim.interval", reclaim.interval);
+	requireInterval("reaper.interval", reaper.interval);
+	requireInterval("broadcast.heartbeatInterval", broadcast.heartbeatInterval);
 	if (broadcast.heartbeatTtl <= broadcast.heartbeatInterval) {
 		throw new InvalidBroadcastOptionsError(
 			broadcast.heartbeatInterval,
 			broadcast.heartbeatTtl,
 		);
 	}
+
 	return {
 		redis: options.redis,
 		consumerName: options.consumerName ?? defaultId,
 		instanceId: options.instanceId ?? defaultId,
 		readTimeout: options.readTimeout ?? DEFAULT_READ_TIMEOUT,
 		readCount: options.readCount ?? DEFAULT_READ_COUNT,
-		reclaim: { ...DEFAULT_RECLAIM, ...options.reclaim },
+		reclaim,
 		broadcast,
-		reaper: { ...DEFAULT_REAPER, ...options.reaper },
+		reaper,
 	};
+}
+
+function requireInterval(option: string, value: number): void {
+	if (Number.isSafeInteger(value) && value >= 1) return;
+
+	throw new InvalidIntervalError(option, value);
 }

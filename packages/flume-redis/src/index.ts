@@ -9,6 +9,7 @@ export * from "./consumer-stop";
 export * from "./delivered-message";
 export * from "./errors";
 export * from "./guarded-broker-probe";
+export * from "./invalid-interval-error";
 export * from "./logging-broker-probe";
 export * from "./noop-broker-probe";
 export * from "./options";
