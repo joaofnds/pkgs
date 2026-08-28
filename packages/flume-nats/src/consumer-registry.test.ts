@@ -46,5 +46,32 @@ describe(ConsumerRegistry, () => {
 				expect(handle.stopCalls).toBe(1);
 			});
 		});
+
+		describe("when the consumer already terminated on its own", () => {
+			it("leaves the consumer's stop uncalled", async () => {
+				const registry = new ConsumerRegistry();
+				const handle = new FakeConsumerHandle();
+				registry.add(handle);
+				handle.terminate();
+				await handle.closed();
+
+				registry.stop(handle);
+
+				expect(handle.stopCalls).toBe(0);
+			});
+		});
+	});
+
+	describe("add", () => {
+		it("drops the entry when the consumer terminates on its own", async () => {
+			const registry = new ConsumerRegistry();
+			const handle = new FakeConsumerHandle();
+			registry.add(handle);
+
+			handle.terminate();
+			await handle.closed();
+
+			expect(registry.size).toBe(0);
+		});
 	});
 });

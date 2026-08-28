@@ -12,6 +12,7 @@ export class ConsumerRegistry {
 
 	add(handle: ConsumerHandle): void {
 		this.handles.add(handle);
+		void handle.closed().then(() => this.handles.delete(handle));
 	}
 
 	stop(handle: ConsumerHandle): void {
