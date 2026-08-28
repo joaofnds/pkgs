@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+	consumeOptionsFor,
 	EXPIRES_MS,
 	IDLE_HEARTBEAT_MS,
-	consumeOptionsFor,
 } from "./consume-options";
 
 describe(consumeOptionsFor, () => {
@@ -28,9 +28,7 @@ describe(consumeOptionsFor, () => {
 	);
 
 	it.for(
-		Array.from({ length: 64 }, (_, i) => i + 1).concat(
-			Number.MAX_SAFE_INTEGER,
-		),
+		Array.from({ length: 64 }, (_, i) => i + 1).concat(Number.MAX_SAFE_INTEGER),
 	)(
 		"keeps the progress invariant for every concurrency, e.g. %i",
 		(concurrency) => {
