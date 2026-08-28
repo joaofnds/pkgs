@@ -40,6 +40,7 @@ import { RedriveResult } from "./redrive-result";
 import { minStreamId } from "./stream-id";
 
 const PAYLOAD_FIELD = "payload";
+const REGISTRY_SCAN_COUNT = 100;
 
 export class RedisStreamsBroker implements Broker {
 	private readonly options: ResolvedOptions;
@@ -51,6 +52,7 @@ export class RedisStreamsBroker implements Broker {
 	private readonly heartbeatSweep: MaintenanceSweep;
 	private readonly reapSweep: MaintenanceSweep;
 	private readonly consumers = new Set<ConsumerState>();
+	private readonly registryCursors = new Map<string, string>();
 
 	constructor(
 		options: RedisStreamsBrokerOptions,
@@ -398,9 +400,11 @@ export class RedisStreamsBroker implements Broker {
 		let groupsDestroyed = 0;
 		let streamsTrimmed = 0;
 		for (const stream of streams) {
+			const registered = await this.readRegistryPage(writeClient, stream);
 			const dead = await this.destroyExpiredBroadcastGroups(
 				writeClient,
 				stream,
+				registered,
 			);
 			groupsDestroyed += dead.size;
 			if (this.options.reaper.trim) {
@@ -408,17 +412,40 @@ export class RedisStreamsBroker implements Broker {
 				if (trimmed) streamsTrimmed += 1;
 			}
 		}
+		this.pruneRegistryCursors(streams);
+
 		if (groupsDestroyed > 0 || streamsTrimmed > 0) {
 			this.probe.reaped({ groupsDestroyed, streamsTrimmed });
+		}
+	}
+
+	private async readRegistryPage(
+		writeClient: WriteClient,
+		stream: string,
+	): Promise<string[]> {
+		const cursor = this.registryCursors.get(stream) ?? "0";
+		const page = await writeClient.sScan(this.registryKey(stream), cursor, {
+			COUNT: REGISTRY_SCAN_COUNT,
+		});
+
+		if (page.cursor === "0") this.registryCursors.delete(stream);
+		else this.registryCursors.set(stream, page.cursor);
+
+		return page.members;
+	}
+
+	private pruneRegistryCursors(streams: ReadonlySet<string>): void {
+		for (const stream of this.registryCursors.keys()) {
+			if (!streams.has(stream)) this.registryCursors.delete(stream);
 		}
 	}
 
 	private async destroyExpiredBroadcastGroups(
 		writeClient: WriteClient,
 		stream: string,
+		registered: readonly string[],
 	): Promise<Set<string>> {
 		const dead = new Set<string>();
-		const registered = await writeClient.sMembers(this.registryKey(stream));
 		for (const group of registered) {
 			const alive = await writeClient.exists(this.heartbeatKey(group));
 			if (alive > 0) continue;

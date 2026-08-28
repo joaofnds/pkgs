@@ -50,6 +50,12 @@ class Deliveries {
 
 const encode = (text: string): Uint8Array => new TextEncoder().encode(text);
 
+const SPARSE_ORPHAN = "flume:cache:dead-inst";
+
+function registryGroups(prefix: string, count: number): string[] {
+	return Array.from({ length: count }, (_, i) => `flume:cache:${prefix}-${i}`);
+}
+
 describe("broadcast delivery + group reaper", () => {
 	async function startInstance(
 		overrides: Parameters<typeof BrokerHarness.start>[0] = {},
@@ -147,6 +153,64 @@ describe("broadcast delivery + group reaper", () => {
 		expect(await harness.registryMembers(topic)).not.toContain(
 			"flume:cache:inst-a",
 		);
+	});
+
+	it("reaps one registry page per stream per sweep", async () => {
+		const crowded = uniqueTopic();
+		const sparse = uniqueTopic();
+		const liveWall = registryGroups("live", 150);
+		const buried = registryGroups("buried", 150);
+		await using harness = await BrokerHarness.start({
+			reaper: { interval: 100, trim: false },
+		});
+		for (const group of liveWall) {
+			await harness.seedOrphanBroadcastGroup(crowded, group);
+			await harness.maint.set(`flume:hb:${group}`, "1");
+		}
+		for (const group of buried) {
+			await harness.seedOrphanBroadcastGroup(crowded, group);
+		}
+		await harness.seedOrphanBroadcastGroup(sparse, SPARSE_ORPHAN);
+
+		await harness.broker.consume(
+			broadcastSub(crowded, "cache"),
+			new Deliveries().deliver,
+		);
+		await harness.broker.consume(
+			broadcastSub(sparse, "cache"),
+			new Deliveries().deliver,
+		);
+
+		await waitFor(
+			async () =>
+				!(await harness.registryMembers(sparse)).includes(SPARSE_ORPHAN),
+			{
+				message:
+					"the sparse stream's orphan should be reaped without waiting out the crowded registry",
+			},
+		);
+		const stillBuried = (await harness.registryMembers(crowded)).filter(
+			(member) => buried.includes(member),
+		);
+		expect(stillBuried.length).toBeGreaterThanOrEqual(50);
+
+		await waitFor(
+			async () => {
+				const members = await harness.registryMembers(crowded);
+				return buried.every((group) => !members.includes(group));
+			},
+			{
+				message:
+					"later sweeps should advance the cursor past the live wall and reap every buried orphan",
+			},
+		);
+		expect(await harness.registryMembers(crowded)).toEqual(
+			expect.arrayContaining(liveWall),
+		);
+		expect(await harness.registryMembers(crowded)).toHaveLength(
+			liveWall.length + 1,
+		);
+		expect(await harness.registryMembers(sparse)).toHaveLength(1);
 	});
 
 	it("trims a live stream by MINID only over groups that survive the reaper", async () => {
