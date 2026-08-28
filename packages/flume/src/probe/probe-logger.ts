@@ -10,7 +10,8 @@ export interface ProbeLogger {
 	info(event: string, fields: Record<string, unknown>): void;
 	/**
 	 * A cause flume is working around on its own, whose impact reaches an
-	 * error-level symptom elsewhere. Operator looks when convenient.
+	 * error-level symptom event on a path nameable in the source. Operator
+	 * looks when convenient.
 	 */
 	warn(event: string, fields: Record<string, unknown>): void;
 	/** A symptom, or a cause with no error-level symptom path. Operator acts now. */

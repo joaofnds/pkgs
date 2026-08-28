@@ -163,11 +163,24 @@ Pluggable seams, all injected into `Flume`:
   stamped from the clock, never global time.
 - **`Probe`** — observability hook called on dispatch / process / failure / dead-letter.
   `LoggingProbe` emits one structured JSON line per event (override `ProbeLogger` to
-  route it elsewhere); `FakeProbe` is a no-op for tests. A throwing probe can never make
-  `emit` reject or block an ack.
+  route it elsewhere, see [Log levels](#log-levels)); `FakeProbe` is a no-op for tests. A
+  throwing probe can never make `emit` reject or block an ack.
 
 Broker-specific options (Redis connection, reclaim, broadcast, reaper, dead-letter
 redrive) are documented in [`@joaofnds/flume-redis`](../flume-redis).
+
+### Log levels
+
+`ProbeLogger` has three levels, chosen by the operator response each demands:
+
+- **info** — expected progress. No operator response.
+- **warn** — a fault flume is working around on its own (a cause), whose impact reaches
+  an error-level symptom event elsewhere in the log. Look when convenient.
+- **error** — a member reporting impact (a symptom), or a cause with no error-level
+  symptom path. Act now.
+
+Operators should alert on `error` and treat `warn` as a look-when-convenient signal, not
+as a page.
 
 ## Producer / consumer split
 
