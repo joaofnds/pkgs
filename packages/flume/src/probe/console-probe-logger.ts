@@ -5,6 +5,10 @@ export class ConsoleProbeLogger implements ProbeLogger {
 		console.info(JSON.stringify({ event, ...fields }));
 	}
 
+	warn(event: string, fields: Record<string, unknown>): void {
+		console.warn(JSON.stringify({ event, ...fields }));
+	}
+
 	error(event: string, fields: Record<string, unknown>): void {
 		console.error(JSON.stringify({ event, ...fields }));
 	}

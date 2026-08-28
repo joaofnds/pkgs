@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { LoggingBrokerProbe } from "./logging-broker-probe";
 
 interface Line {
-	level: "info" | "error";
+	level: "info" | "warn" | "error";
 	event: string;
 	fields: Record<string, unknown>;
 }
@@ -13,6 +13,10 @@ class RecordingLogger implements ProbeLogger {
 
 	info(event: string, fields: Record<string, unknown>): void {
 		this.lines.push({ level: "info", event, fields });
+	}
+
+	warn(event: string, fields: Record<string, unknown>): void {
+		this.lines.push({ level: "warn", event, fields });
 	}
 
 	error(event: string, fields: Record<string, unknown>): void {

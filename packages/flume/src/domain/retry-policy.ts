@@ -4,7 +4,7 @@ export class RetryPolicy {
 	readonly maxAttempts: number;
 
 	constructor(props: { maxAttempts: number }) {
-		if (props.maxAttempts < 1) {
+		if (!Number.isInteger(props.maxAttempts) || props.maxAttempts < 1) {
 			throw new InvalidRetryPolicyError(props.maxAttempts);
 		}
 		this.maxAttempts = props.maxAttempts;

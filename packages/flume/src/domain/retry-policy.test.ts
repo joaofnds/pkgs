@@ -24,4 +24,16 @@ describe(RetryPolicy, () => {
 			InvalidRetryPolicyError,
 		);
 	});
+
+	it("rejects a non-finite maxAttempts", () => {
+		expect(() => new RetryPolicy({ maxAttempts: Infinity })).toThrow(
+			InvalidRetryPolicyError,
+		);
+	});
+
+	it("rejects a non-integer maxAttempts", () => {
+		expect(() => new RetryPolicy({ maxAttempts: 2.5 })).toThrow(
+			InvalidRetryPolicyError,
+		);
+	});
 });
