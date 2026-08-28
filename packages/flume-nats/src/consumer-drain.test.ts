@@ -1,7 +1,7 @@
 import { Topic } from "@joaofnds/flume";
 import { JsMsg } from "@nats-io/jetstream";
 import { ClosedConnectionError } from "@nats-io/nats-core";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ConsumerDrain } from "./consumer-drain";
 import { subjectFor } from "./subject";
 import { RecordingBrokerProbe } from "./test-support/recording-broker-probe";
@@ -108,5 +108,31 @@ describe(ConsumerDrain, () => {
 
 	it("pins the error name an expected shutdown carries", () => {
 		expect(new ClosedConnectionError().name).toBe("ClosedConnectionError");
+	});
+
+	it("dispatches one delivery at a time at concurrency 1", async () => {
+		const resolvers: Array<() => void> = [];
+		let inFlight = 0;
+		let maxInFlight = 0;
+
+		const drainDone = new ConsumerDrain(probe, 1).drain(
+			sourceOf(message(1), message(2)),
+			TOPIC,
+			DURABLE,
+			async () => {
+				inFlight += 1;
+				maxInFlight = Math.max(maxInFlight, inFlight);
+				await new Promise<void>((resolve) => resolvers.push(resolve));
+				inFlight -= 1;
+			},
+		);
+
+		await vi.waitFor(() => expect(resolvers).toHaveLength(1));
+		resolvers[0]();
+		await vi.waitFor(() => expect(resolvers).toHaveLength(2));
+		resolvers[1]();
+		await drainDone;
+
+		expect(maxInFlight).toBe(1);
 	});
 });
