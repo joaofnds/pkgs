@@ -58,11 +58,19 @@ own client version.
 
 ## Performance
 
-The adapter dispatches up to `readCount` deliveries concurrently (the same concurrency
-knob as the Redis adapter) and defaults the connection to `noAsyncTraces: true`
-(overridable via your connection options) to skip the client's per-request stack capture.
-Confirmed publishes keep their JetStream PubAck, so durability is unchanged. Together with
-fire-and-forget acks this puts throughput within ~1–1.6× of the Redis adapter (see
+The adapter dispatches up to `concurrency` deliveries at a time (default 10; 1 means
+serial delivery). Unlike the Redis adapter, where `readCount` is the `XREADGROUP` batch
+size and dispatch is batch-gated on the slowest handler, this is a sliding pool: a new
+pull starts as soon as any in-flight delivery finishes. The JetStream pull buffer that
+backs it (`max_messages` = `max(concurrency, 2)`) is derived, not caller-set — two is the
+smallest buffer the client can make progress on, so `concurrency: 1` still asks for a
+buffer of 2. That second buffered message's server-side `ackWait` clock runs while the
+first is handled, so a handler whose duration approaches `ackWait` risks its redelivery.
+
+The adapter defaults the connection to `noAsyncTraces: true` (overridable via your
+connection options) to skip the client's per-request stack capture. Confirmed publishes
+keep their JetStream PubAck, so durability is unchanged. Together with fire-and-forget
+acks this puts throughput within ~1–1.6× of the Redis adapter (see
 `@joaofnds/flume-bench`), up from ~21× slower.
 
 Those figures were measured on the deprecated `nats` v2 client, before the `@nats-io/*` v3

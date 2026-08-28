@@ -10,6 +10,9 @@ This document is the durable record of the experiment. The saturation sweep is e
 to run (it saturates every core on the test machine), so **all measurements are captured
 here** — re-running should not be necessary to recover any number below.
 
+`readCount` below is the name the NATS adapter's concurrency option carried at
+measurement time; `PKGS-12` renamed it to `concurrency`. The figures are unchanged.
+
 ---
 
 ## Environment
@@ -67,9 +70,9 @@ Same `1KB / 10k / c200` variant, applied cumulatively:
    handles. This is the single biggest win (21.7× → 3.85×).
 
 2. **Bounded-concurrency drain.** The drain now dispatches up to `readCount` deliveries
-   concurrently (a `Promise.race` pool), mirroring the Redis adapter's "`readCount` is the
-   concurrency knob." **No change in the no-op benchmark** (it is publish/ack-bound) but a
-   **~100× win for real I/O handlers** — see the slow-handler probe below.
+   concurrently (a `Promise.race` pool). **No change in the no-op benchmark** (it is
+   publish/ack-bound) but a **~100× win for real I/O handlers** — see the slow-handler
+   probe below.
 
 3. **`noAsyncTraces: true`.** The v2 client captures a `new Error()` stack per request for
    async traces. Disabling it (overridable via the user's `nats` options) **doubled
