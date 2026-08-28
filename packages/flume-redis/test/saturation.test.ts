@@ -15,13 +15,17 @@ import { BrokerHarness } from "./support/harness";
 
 const NOOP_HANDLER: EventHandler = { async handle() {} };
 
-function subscription(topic: string, name: string): Subscription {
+function subscription(
+	topic: string,
+	name: string,
+	delivery: DeliveryMode = DeliveryMode.Competing,
+): Subscription {
 	return new Subscription({
 		topic: new Topic(topic),
 		name,
 		handler: NOOP_HANDLER,
 		retry: new RetryPolicy({ maxAttempts: 3 }),
-		delivery: DeliveryMode.Competing,
+		delivery,
 	});
 }
 
@@ -130,6 +134,46 @@ describe("saturation gauges", () => {
 		);
 		expect(sample?.reapSweepsSkipped).toBe(0);
 		expect(sample?.heartbeatSweepsSkipped).toBe(0);
+	});
+
+	it("counts a heartbeat sweep skipped when the interval is shorter than a round trip", async () => {
+		await using harness = await BrokerHarness.start({
+			broadcast: { heartbeatInterval: 1, heartbeatTtl: 30_000 },
+		});
+		const topic = uniqueTopic();
+		await harness.broker.consume(
+			subscription(topic, "cache", DeliveryMode.Broadcast),
+			new Deliveries().deliver,
+		);
+
+		await waitFor(
+			async () =>
+				(await harness.broker.sampleSaturation()).heartbeatSweepsSkipped > 0,
+			{
+				message:
+					"a heartbeat sweep outrunning its interval should count a skipped tick",
+			},
+		);
+	});
+
+	it("counts a reap sweep skipped when the interval is shorter than a sweep", async () => {
+		await using harness = await BrokerHarness.start({
+			reaper: { interval: 1, trim: false },
+		});
+		const topic = uniqueTopic();
+		await harness.broker.consume(
+			subscription(topic, "cache", DeliveryMode.Broadcast),
+			new Deliveries().deliver,
+		);
+
+		await waitFor(
+			async () =>
+				(await harness.broker.sampleSaturation()).reapSweepsSkipped > 0,
+			{
+				message:
+					"a reap sweep outrunning its interval should count a skipped tick",
+			},
+		);
 	});
 
 	it("reports local throughput per second after deliveries", async () => {
