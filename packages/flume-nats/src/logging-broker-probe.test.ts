@@ -113,7 +113,7 @@ describe(LoggingBrokerProbe, () => {
 		]);
 	});
 
-	it("logs a consumer degradation at error with the reason", () => {
+	it("logs a consumer degradation at warn for no_responders", () => {
 		probe.consumerDegraded({
 			subject: "flume.orders",
 			durable: "orders__workers",
@@ -123,13 +123,57 @@ describe(LoggingBrokerProbe, () => {
 
 		expect(logger.lines).toEqual([
 			{
-				level: "error",
+				level: "warn",
 				event: "flume.broker.consumer_degraded",
 				fields: {
 					subject: "flume.orders",
 					durable: "orders__workers",
 					reason: "no_responders",
 					occurrences: 3,
+				},
+			},
+		]);
+	});
+
+	it("logs a consumer degradation at warn for exceeded_limits", () => {
+		probe.consumerDegraded({
+			subject: "flume.orders",
+			durable: "orders__workers",
+			reason: "exceeded_limits",
+			occurrences: 2,
+		});
+
+		expect(logger.lines).toEqual([
+			{
+				level: "warn",
+				event: "flume.broker.consumer_degraded",
+				fields: {
+					subject: "flume.orders",
+					durable: "orders__workers",
+					reason: "exceeded_limits",
+					occurrences: 2,
+				},
+			},
+		]);
+	});
+
+	it("logs a consumer degradation at error for status_watch_failed", () => {
+		probe.consumerDegraded({
+			subject: "flume.orders",
+			durable: "orders__workers",
+			reason: "status_watch_failed",
+			occurrences: 1,
+		});
+
+		expect(logger.lines).toEqual([
+			{
+				level: "error",
+				event: "flume.broker.consumer_degraded",
+				fields: {
+					subject: "flume.orders",
+					durable: "orders__workers",
+					reason: "status_watch_failed",
+					occurrences: 1,
 				},
 			},
 		]);

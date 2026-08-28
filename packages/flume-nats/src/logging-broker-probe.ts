@@ -48,7 +48,10 @@ export class LoggingBrokerProbe implements BrokerProbe {
 	}
 
 	consumerDegraded(degradation: ConsumerDegradation): void {
-		this.logger.error("flume.broker.consumer_degraded", {
+		const level =
+			degradation.reason === "status_watch_failed" ? "error" : "warn";
+
+		this.logger[level]("flume.broker.consumer_degraded", {
 			subject: degradation.subject,
 			durable: degradation.durable,
 			reason: degradation.reason,
