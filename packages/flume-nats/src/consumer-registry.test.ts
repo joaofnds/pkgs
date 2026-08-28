@@ -33,5 +33,18 @@ describe(ConsumerRegistry, () => {
 			expect(handle.stopCalls).toBe(1);
 			expect(registry.size).toBe(0);
 		});
+
+		describe("when a stop was already requested", () => {
+			it("leaves the consumer's stop uncalled", () => {
+				const registry = new ConsumerRegistry();
+				const handle = new FakeConsumerHandle();
+				registry.add(handle);
+				registry.stop(handle);
+
+				registry.stop(handle);
+
+				expect(handle.stopCalls).toBe(1);
+			});
+		});
 	});
 });

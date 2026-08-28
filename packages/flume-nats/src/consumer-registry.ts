@@ -15,7 +15,7 @@ export class ConsumerRegistry {
 	}
 
 	stop(handle: ConsumerHandle): void {
-		this.handles.delete(handle);
+		if (!this.handles.delete(handle)) return;
 		handle.stop();
 	}
 }
