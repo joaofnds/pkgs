@@ -656,12 +656,18 @@ The five gaps from the prior audit are now closed. Golden signals (latency, erro
 traffic, saturation) plus queue-specific signals (backlog depth, pending, lag,
 reclaim/reaper health) are observable:
 
-1. **Swallowed adapter failures — surfaced.** `flume-redis`'s `reclaim()`/`reap()`/
-   `heartbeat()` timers route rejections to `BrokerProbe.reclaimFailed`/`reapFailed`/
-   `heartbeatFailed` (no more `.catch(() => {})`). `flume-nats`'s `handle()` routes
-   delivery failures to `BrokerProbe.deliveryFailed`; `drain()` stays silent (it only
-   fires on expected shutdown teardown). A throwing-probe test proves messaging is
-   unaffected in both adapters.
+1. **Swallowed adapter failures — surfaced, and the maintenance plane is bounded.**
+   `flume-redis`'s `reclaim()`/`reap()`/`heartbeat()` timers route rejections to
+   `BrokerProbe.reclaimFailed`/`reapFailed`/`heartbeatFailed` (no more `.catch(() => {})`).
+   `flume-nats`'s `handle()` routes delivery failures to `BrokerProbe.deliveryFailed`;
+   `drain()` stays silent (it only fires on expected shutdown teardown). A throwing-probe
+   test proves messaging is unaffected in both adapters. Each of the three Redis timers runs
+   **at most one sweep at a time**: a tick arriving while its predecessor is in flight is
+   skipped and counted, and the guard is released even when the sweep rejects. `reap()` reads
+   **one bounded `SSCAN` page** of the broadcast-group registry per stream per sweep, with the
+   cursor kept per stream, so the reply is bounded by the page rather than by the fleet and a
+   crowded registry cannot starve the streams behind it. A second `connect()` is **refused** with
+   `BrokerAlreadyConnectedError` rather than silently replacing the clients and timers.
 2. **Latency — instrumented.** `Worker` is `Clock`-injected and times the handler;
    `processed(sub, msg, timing)` carries `handlerDurationMs` and `endToEndLatencyMs`
    (`end − envelope.dispatchedAt`, un-clamped — clock skew is a real signal).
@@ -675,7 +681,11 @@ reclaim/reaper health) are observable:
    (`connected`/`disconnected`/`reconnected` + `deliveryFailed`).
 5. **Saturation / backlog — exposed.** `RedisStreamsBroker.sampleSaturation()` returns
    per-consumer `streamDepth` (XLEN), `pendingCount` + `consumerLag` (one `XINFO GROUPS`
-   per stream), and broker-wide `throughputPerSecond` (the in-memory `Throughput`).
+   per stream), broker-wide `throughputPerSecond` (the in-memory `Throughput`), and
+   `reclaimSweepsSkipped` / `reapSweepsSkipped` / `heartbeatSweepsSkipped` — the ticks each
+   maintenance timer dropped because its previous sweep was still running. A rising skip
+   count is the operator-visible statement that maintenance is not keeping up; the three
+   are in-memory and cost no Redis call.
 
 **Remaining (tracked, lower priority):**
 - **No metrics sink ships.** Only logging impls (`LoggingProbe`, `LoggingBrokerProbe`)
