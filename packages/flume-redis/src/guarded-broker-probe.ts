@@ -1,4 +1,6 @@
 import { BrokerProbe } from "./broker-probe";
+import { ConsumerStop } from "./consumer-stop";
+import { ReapResult } from "./reap-result";
 import { RedriveResult } from "./redrive-result";
 
 export class GuardedBrokerProbe implements BrokerProbe {
@@ -24,8 +26,8 @@ export class GuardedBrokerProbe implements BrokerProbe {
 		this.guard(() => this.delegate.reclaimFailed(error));
 	}
 
-	reaped(groupsDestroyed: number, streamsTrimmed: number): void {
-		this.guard(() => this.delegate.reaped(groupsDestroyed, streamsTrimmed));
+	reaped(result: ReapResult): void {
+		this.guard(() => this.delegate.reaped(result));
 	}
 
 	reapFailed(error: unknown): void {
@@ -40,8 +42,8 @@ export class GuardedBrokerProbe implements BrokerProbe {
 		this.guard(() => this.delegate.redrove(result));
 	}
 
-	consumerStopped(stream: string, group: string, error: unknown): void {
-		this.guard(() => this.delegate.consumerStopped(stream, group, error));
+	consumerStopped(stop: ConsumerStop): void {
+		this.guard(() => this.delegate.consumerStopped(stop));
 	}
 
 	private guard(call: () => void): void {

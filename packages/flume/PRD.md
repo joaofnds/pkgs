@@ -641,6 +641,15 @@ after a successful publish, nor prevent an `ack`/`nack`. Each adapter applies th
 same guard to its `BrokerProbe` (`GuardedBrokerProbe`). Broker side-effects always
 complete before the probe call, and the probe call is always last in its branch (§5).
 
+**One rule sets every `BrokerProbe` signature: a member carrying more than one
+field takes a readonly record; a member carrying zero or one field stays
+positional.** It exists because a published port's positional arguments of the
+same type are silently swappable at a call site and cannot grow a field without a
+breaking release. It governs the adapter-owned `BrokerProbe` ports only. The core
+`Probe` is deliberately exempt: its multi-argument members take mutually
+unassignable types (`Subscription`, `DeliveredMessage`, `ProcessingTiming`), so a
+swap is already a compile error and the rule would buy nothing.
+
 ### 11.1 Coverage status (audited 2026-06-23)
 
 The five gaps from the prior audit are now closed. Golden signals (latency, errors,

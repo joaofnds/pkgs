@@ -1,5 +1,7 @@
 import { ConsoleProbeLogger, ProbeLogger } from "@joaofnds/flume";
 import { BrokerProbe } from "./broker-probe";
+import { ConsumerStop } from "./consumer-stop";
+import { ReapResult } from "./reap-result";
 import { RedriveResult } from "./redrive-result";
 
 export class LoggingBrokerProbe implements BrokerProbe {
@@ -29,10 +31,10 @@ export class LoggingBrokerProbe implements BrokerProbe {
 		});
 	}
 
-	reaped(groupsDestroyed: number, streamsTrimmed: number): void {
+	reaped(result: ReapResult): void {
 		this.logger.info("flume.broker.reaped", {
-			groupsDestroyed,
-			streamsTrimmed,
+			groupsDestroyed: result.groupsDestroyed,
+			streamsTrimmed: result.streamsTrimmed,
 		});
 	}
 
@@ -55,11 +57,11 @@ export class LoggingBrokerProbe implements BrokerProbe {
 		});
 	}
 
-	consumerStopped(stream: string, group: string, error: unknown): void {
+	consumerStopped(stop: ConsumerStop): void {
 		this.logger.error("flume.broker.consumer_stopped", {
-			stream,
-			group,
-			error: this.reason(error),
+			stream: stop.stream,
+			group: stop.group,
+			error: this.reason(stop.error),
 		});
 	}
 

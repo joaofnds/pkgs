@@ -18,11 +18,15 @@ describe(GuardedBrokerProbe, () => {
 		probe.reconnected();
 		probe.reclaimed(3);
 		probe.reclaimFailed(new Error("reclaim boom"));
-		probe.reaped(2, 1);
+		probe.reaped({ groupsDestroyed: 2, streamsTrimmed: 1 });
 		probe.reapFailed(new Error("reap boom"));
 		probe.heartbeatFailed(new Error("hb boom"));
 		probe.redrove({ redriven: 4, skipped: 1 });
-		probe.consumerStopped("stream", "group", new Error("nogroup"));
+		probe.consumerStopped({
+			stream: "stream",
+			group: "group",
+			error: new Error("nogroup"),
+		});
 
 		expect(delegate.connectedCount).toBe(1);
 		expect(delegate.disconnectedCount).toBe(1);
@@ -48,12 +52,18 @@ describe(GuardedBrokerProbe, () => {
 		expect(() => throwing.reconnected()).not.toThrow();
 		expect(() => throwing.reclaimed(1)).not.toThrow();
 		expect(() => throwing.reclaimFailed(new Error("x"))).not.toThrow();
-		expect(() => throwing.reaped(1, 1)).not.toThrow();
+		expect(() =>
+			throwing.reaped({ groupsDestroyed: 1, streamsTrimmed: 1 }),
+		).not.toThrow();
 		expect(() => throwing.reapFailed(new Error("x"))).not.toThrow();
 		expect(() => throwing.heartbeatFailed(new Error("x"))).not.toThrow();
 		expect(() => throwing.redrove({ redriven: 0, skipped: 0 })).not.toThrow();
 		expect(() =>
-			throwing.consumerStopped("stream", "group", new Error("x")),
+			throwing.consumerStopped({
+				stream: "stream",
+				group: "group",
+				error: new Error("x"),
+			}),
 		).not.toThrow();
 	});
 });

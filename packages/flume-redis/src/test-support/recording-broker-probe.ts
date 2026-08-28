@@ -1,16 +1,7 @@
 import { BrokerProbe } from "../broker-probe";
+import { ConsumerStop } from "../consumer-stop";
+import { ReapResult } from "../reap-result";
 import { RedriveResult } from "../redrive-result";
-
-export interface ReapedCall {
-	groupsDestroyed: number;
-	streamsTrimmed: number;
-}
-
-export interface ConsumerStoppedCall {
-	stream: string;
-	group: string;
-	error: unknown;
-}
 
 export class RecordingBrokerProbe implements BrokerProbe {
 	connectedCount = 0;
@@ -18,11 +9,11 @@ export class RecordingBrokerProbe implements BrokerProbe {
 	reconnectedCount = 0;
 	readonly reclaimedCounts: number[] = [];
 	readonly reclaimFailures: unknown[] = [];
-	readonly reapedCalls: ReapedCall[] = [];
+	readonly reapedCalls: ReapResult[] = [];
 	readonly reapFailures: unknown[] = [];
 	readonly heartbeatFailures: unknown[] = [];
 	readonly redroveResults: RedriveResult[] = [];
-	readonly consumerStoppedCalls: ConsumerStoppedCall[] = [];
+	readonly consumerStoppedCalls: ConsumerStop[] = [];
 
 	connected(): void {
 		this.connectedCount += 1;
@@ -44,8 +35,8 @@ export class RecordingBrokerProbe implements BrokerProbe {
 		this.reclaimFailures.push(error);
 	}
 
-	reaped(groupsDestroyed: number, streamsTrimmed: number): void {
-		this.reapedCalls.push({ groupsDestroyed, streamsTrimmed });
+	reaped(result: ReapResult): void {
+		this.reapedCalls.push(result);
 	}
 
 	reapFailed(error: unknown): void {
@@ -60,7 +51,7 @@ export class RecordingBrokerProbe implements BrokerProbe {
 		this.redroveResults.push(result);
 	}
 
-	consumerStopped(stream: string, group: string, error: unknown): void {
-		this.consumerStoppedCalls.push({ stream, group, error });
+	consumerStopped(stop: ConsumerStop): void {
+		this.consumerStoppedCalls.push(stop);
 	}
 }

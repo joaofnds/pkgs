@@ -280,7 +280,11 @@ export class RedisStreamsBroker implements Broker {
 				if (state.stopped || isClientClosedError(error)) return;
 				if (isNoGroupError(error)) {
 					state.stopped = true;
-					this.probe.consumerStopped(state.stream, state.group, error);
+					this.probe.consumerStopped({
+						stream: state.stream,
+						group: state.group,
+						error,
+					});
 					return;
 				}
 			}
@@ -384,7 +388,7 @@ export class RedisStreamsBroker implements Broker {
 			}
 		}
 		if (groupsDestroyed > 0 || streamsTrimmed > 0) {
-			this.probe.reaped(groupsDestroyed, streamsTrimmed);
+			this.probe.reaped({ groupsDestroyed, streamsTrimmed });
 		}
 	}
 

@@ -110,6 +110,7 @@ describe("BrokerProbe wiring", () => {
 			message: "the probe should observe the reaper destroying the orphan",
 		});
 		expect(probe.reapedCalls[0].groupsDestroyed).toBeGreaterThanOrEqual(1);
+		expect(probe.reapedCalls[0].streamsTrimmed).toBe(0);
 	});
 
 	it("reports a reaper failure instead of dropping it", async () => {

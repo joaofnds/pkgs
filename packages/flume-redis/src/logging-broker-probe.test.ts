@@ -78,7 +78,7 @@ describe(LoggingBrokerProbe, () => {
 	});
 
 	it("logs reaped resources at info with the counts", () => {
-		probe.reaped(2, 3);
+		probe.reaped({ groupsDestroyed: 2, streamsTrimmed: 3 });
 
 		expect(logger.lines).toEqual([
 			{
@@ -110,7 +110,11 @@ describe(LoggingBrokerProbe, () => {
 	});
 
 	it("logs a consumer stop at error with the stream, group and reason", () => {
-		probe.consumerStopped("orders", "orders__workers", new Error("boom"));
+		probe.consumerStopped({
+			stream: "orders",
+			group: "orders__workers",
+			error: new Error("boom"),
+		});
 
 		expect(logger.lines).toEqual([
 			{
