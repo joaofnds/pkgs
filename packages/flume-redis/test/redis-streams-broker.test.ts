@@ -10,7 +10,7 @@ import {
 } from "@joaofnds/flume";
 import { uniqueTopic, waitFor } from "@joaofnds/flume-tck";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { RedisStreamsBroker } from "../src/index";
+import { BrokerAlreadyConnectedError, RedisStreamsBroker } from "../src/index";
 import { BrokerHarness } from "./support/harness";
 
 // Adapter-specific behaviors that assert Redis Streams internals — the PEL, the
@@ -127,5 +127,37 @@ describe("RedisStreamsBroker (Redis-specific mechanics)", () => {
 
 		await sleep(300);
 		expect(deliveries.messages).toHaveLength(1);
+	});
+
+	describe("connect", () => {
+		it("refuses a second connect and leaves the first connection usable", async () => {
+			const topic = uniqueTopic();
+			const deliveries = new Deliveries();
+			await broker.consume(subscription(topic, "h"), deliveries.deliver);
+
+			await expect(broker.connect()).rejects.toBeInstanceOf(
+				BrokerAlreadyConnectedError,
+			);
+
+			await broker.publish(new Topic(topic), encode("after the refusal"));
+			await waitFor(() => deliveries.messages.length === 1, {
+				message: "the refused connect should leave the first connection intact",
+			});
+		});
+
+		it("resets its clients when the connection fails, so a retry is not refused", async () => {
+			const unreachable = new RedisStreamsBroker({
+				redis: {
+					url: "redis://localhost:6399",
+					socket: { reconnectStrategy: false },
+				},
+			});
+
+			await expect(unreachable.connect()).rejects.toThrow();
+
+			await expect(unreachable.connect()).rejects.not.toBeInstanceOf(
+				BrokerAlreadyConnectedError,
+			);
+		});
 	});
 });

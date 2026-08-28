@@ -11,6 +11,7 @@ import {
 } from "@joaofnds/flume";
 import { Throughput } from "@joaofnds/throughput";
 import { AckBatch } from "./ack-batch";
+import { BrokerAlreadyConnectedError } from "./broker-already-connected-error";
 import { BrokerError } from "./broker-error";
 import { BrokerNotConnectedError } from "./broker-not-connected-error";
 import { BrokerProbe } from "./broker-probe";
@@ -61,13 +62,26 @@ export class RedisStreamsBroker implements Broker {
 	}
 
 	async connect(): Promise<void> {
-		this.writeClient = createWriteClient(this.options.redis);
-		this.reclaimClient = createReadClient(this.options.redis);
-		new ClientLifecycle(this.probe).watch(this.writeClient);
-		await Promise.all([
-			this.writeClient.connect(),
-			this.reclaimClient.connect(),
-		]);
+		if (this.writeClient !== undefined) throw new BrokerAlreadyConnectedError();
+
+		try {
+			this.writeClient = createWriteClient(this.options.redis);
+			this.reclaimClient = createReadClient(this.options.redis);
+			new ClientLifecycle(this.probe).watch(this.writeClient);
+			await Promise.all([
+				this.writeClient.connect(),
+				this.reclaimClient.connect(),
+			]);
+		} catch (error) {
+			await Promise.allSettled([
+				this.writeClient?.close(),
+				this.reclaimClient?.close(),
+			]);
+			this.writeClient = undefined;
+			this.reclaimClient = undefined;
+			throw error;
+		}
+
 		this.throughput.start();
 		this.reclaimTimer = setInterval(() => {
 			this.reclaim().catch((error) => this.probe.reclaimFailed(error));

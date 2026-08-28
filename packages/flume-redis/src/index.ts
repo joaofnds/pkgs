@@ -1,3 +1,4 @@
+export * from "./broker-already-connected-error";
 export * from "./broker-closed-error";
 export * from "./broker-error";
 export * from "./broker-not-connected-error";
@@ -14,3 +15,4 @@ export * from "./options";
 export * from "./reap-result";
 export * from "./redis-streams-broker";
 export * from "./redrive-result";
+export * from "./sweep-already-started-error";
