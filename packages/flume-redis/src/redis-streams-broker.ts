@@ -400,11 +400,11 @@ export class RedisStreamsBroker implements Broker {
 		let groupsDestroyed = 0;
 		let streamsTrimmed = 0;
 		for (const stream of streams) {
-			const registered = await this.readRegistryPage(writeClient, stream);
+			const members = await this.readRegistryPage(writeClient, stream);
 			const dead = await this.destroyExpiredBroadcastGroups(
 				writeClient,
 				stream,
-				registered,
+				members,
 			);
 			groupsDestroyed += dead.size;
 			if (this.options.reaper.trim) {
@@ -443,10 +443,10 @@ export class RedisStreamsBroker implements Broker {
 	private async destroyExpiredBroadcastGroups(
 		writeClient: WriteClient,
 		stream: string,
-		registered: readonly string[],
+		members: readonly string[],
 	): Promise<Set<string>> {
 		const dead = new Set<string>();
-		for (const group of registered) {
+		for (const group of members) {
 			const alive = await writeClient.exists(this.heartbeatKey(group));
 			if (alive > 0) continue;
 			await writeClient.xGroupDestroy(stream, group);
