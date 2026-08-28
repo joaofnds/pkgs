@@ -92,7 +92,7 @@ export class NatsStreamsBroker implements Broker {
 
 		const consumer = await js.consumers.get(STREAM, durable);
 		const messages = await consumer.consume({
-			max_messages: this.options.readCount,
+			max_messages: this.options.concurrency,
 		});
 		// registered before any await: notify() only reaches listeners already
 		// registered, and the initial pull fires from the constructor
@@ -103,7 +103,7 @@ export class NatsStreamsBroker implements Broker {
 			subjectFor(sub.topic.name),
 			durable,
 		);
-		void new ConsumerDrain(this.probe, this.options.readCount).drain(
+		void new ConsumerDrain(this.probe, this.options.concurrency).drain(
 			messages,
 			sub.topic,
 			durable,

@@ -235,7 +235,7 @@ export class NatsSystem implements BenchSystem {
 		this.variant = variant;
 		this.broker = new NatsStreamsBroker({
 			nats: { servers: this.servers },
-			readCount: variant.concurrency,
+			concurrency: variant.concurrency,
 			// Park ack_wait far beyond the run so no redelivery fires mid-measurement.
 			ackWait: HOUR,
 		});

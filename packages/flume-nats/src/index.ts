@@ -1,6 +1,7 @@
 export * from "./broker-not-connected-error";
 export * from "./broker-probe";
 export * from "./guarded-broker-probe";
+export * from "./invalid-concurrency-error";
 export * from "./logging-broker-probe";
 export * from "./nats-delivered-message";
 export * from "./nats-streams-broker";

@@ -54,7 +54,7 @@ function makeBroker(): ManagedBroker {
 	if (cfg.system === "nats") {
 		return new NatsStreamsBroker({
 			nats: { servers: cfg.url },
-			readCount: cfg.readCount,
+			concurrency: cfg.readCount,
 			ackWait: HOUR,
 		});
 	}

@@ -212,7 +212,7 @@ async function ensureNatsSharedConsumer(
 ): Promise<void> {
 	const broker = new NatsStreamsBroker({
 		nats: { servers: url },
-		readCount: 1,
+		concurrency: 1,
 		ackWait: HOUR,
 	});
 	await broker.connect();
