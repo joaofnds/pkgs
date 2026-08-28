@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from "node:timers/promises";
 import {
 	DeliveredMessage,
 	DeliveryMode,
@@ -32,6 +33,16 @@ class Deliveries {
 		this.messages.push(msg);
 		if (this.mode === "ack") await msg.ack();
 		else await msg.nack();
+	};
+}
+
+class SlowRedeliveries {
+	readonly messages: DeliveredMessage[] = [];
+
+	deliver = async (msg: DeliveredMessage): Promise<void> => {
+		this.messages.push(msg);
+		if (msg.deliveryCount > 1) await sleep(300);
+		await msg.nack();
 	};
 }
 
@@ -96,6 +107,29 @@ describe("saturation gauges", () => {
 		);
 		expect(snapshot?.streamDepth).toBe(3);
 		expect(snapshot?.pendingCount).toBe(3);
+	});
+
+	it("counts a reclaim sweep skipped while the previous sweep is still delivering", async () => {
+		await using harness = await start();
+		const topic = uniqueTopic();
+		const slow = new SlowRedeliveries();
+		await harness.broker.consume(subscription(topic, "h"), slow.deliver);
+
+		await harness.broker.publish(new Topic(topic), encode("stuck"));
+
+		let sample: BrokerSaturation | undefined;
+		await waitFor(
+			async () => {
+				sample = await harness.broker.sampleSaturation();
+				return sample.reclaimSweepsSkipped > 0;
+			},
+			{
+				message:
+					"a reclaim sweep outrunning its interval should count a skipped tick",
+			},
+		);
+		expect(sample?.reapSweepsSkipped).toBe(0);
+		expect(sample?.heartbeatSweepsSkipped).toBe(0);
 	});
 
 	it("reports local throughput per second after deliveries", async () => {

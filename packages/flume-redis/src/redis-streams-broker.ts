@@ -29,6 +29,7 @@ import { ConsumerState } from "./consumer-state";
 import { RedisDeliveredMessage } from "./delivered-message";
 import { asBrokerError, isClientClosedError, isNoGroupError } from "./errors";
 import { GuardedBrokerProbe } from "./guarded-broker-probe";
+import { MaintenanceSweep } from "./maintenance-sweep";
 import { NoopBrokerProbe } from "./noop-broker-probe";
 import {
 	RedisStreamsBrokerOptions,
@@ -46,9 +47,9 @@ export class RedisStreamsBroker implements Broker {
 	private readonly probe: BrokerProbe;
 	private writeClient?: WriteClient;
 	private reclaimClient?: ReadClient;
-	private reclaimTimer?: ReturnType<typeof setInterval>;
-	private heartbeatTimer?: ReturnType<typeof setInterval>;
-	private reaperTimer?: ReturnType<typeof setInterval>;
+	private readonly reclaimSweep: MaintenanceSweep;
+	private readonly heartbeatSweep: MaintenanceSweep;
+	private readonly reapSweep: MaintenanceSweep;
 	private readonly consumers = new Set<ConsumerState>();
 
 	constructor(
@@ -59,6 +60,22 @@ export class RedisStreamsBroker implements Broker {
 		this.options = resolveOptions(options);
 		this.throughput = throughput;
 		this.probe = new GuardedBrokerProbe(probe);
+
+		this.reclaimSweep = new MaintenanceSweep(
+			() => this.reclaim(),
+			(error) => this.probe.reclaimFailed(error),
+			this.options.reclaim.interval,
+		);
+		this.heartbeatSweep = new MaintenanceSweep(
+			() => this.heartbeat(),
+			(error) => this.probe.heartbeatFailed(error),
+			this.options.broadcast.heartbeatInterval,
+		);
+		this.reapSweep = new MaintenanceSweep(
+			() => this.reap(),
+			(error) => this.probe.reapFailed(error),
+			this.options.reaper.interval,
+		);
 	}
 
 	async connect(): Promise<void> {
@@ -83,28 +100,15 @@ export class RedisStreamsBroker implements Broker {
 		}
 
 		this.throughput.start();
-		this.reclaimTimer = setInterval(() => {
-			this.reclaim().catch((error) => this.probe.reclaimFailed(error));
-		}, this.options.reclaim.interval);
-		this.heartbeatTimer = setInterval(() => {
-			this.heartbeat().catch((error) => this.probe.heartbeatFailed(error));
-		}, this.options.broadcast.heartbeatInterval);
-		this.reaperTimer = setInterval(() => {
-			this.reap().catch((error) => this.probe.reapFailed(error));
-		}, this.options.reaper.interval);
+		this.reclaimSweep.start();
+		this.heartbeatSweep.start();
+		this.reapSweep.start();
 	}
 
 	async close(): Promise<void> {
-		for (const timer of [
-			this.reclaimTimer,
-			this.heartbeatTimer,
-			this.reaperTimer,
-		]) {
-			if (timer !== undefined) clearInterval(timer);
-		}
-		this.reclaimTimer = undefined;
-		this.heartbeatTimer = undefined;
-		this.reaperTimer = undefined;
+		this.reclaimSweep.stop();
+		this.heartbeatSweep.stop();
+		this.reapSweep.stop();
 		this.throughput.stop();
 		await this.cleanupBroadcastGroups();
 		for (const state of this.consumers) {
@@ -242,6 +246,9 @@ export class RedisStreamsBroker implements Broker {
 		return {
 			throughputPerSecond: this.throughput.perSecond(),
 			consumers,
+			reclaimSweepsSkipped: this.reclaimSweep.skipped,
+			reapSweepsSkipped: this.reapSweep.skipped,
+			heartbeatSweepsSkipped: this.heartbeatSweep.skipped,
 		};
 	}
 
