@@ -35,7 +35,7 @@ export class LoggingProbe implements Probe {
 	}
 
 	failed(sub: Subscription, msg: DeliveredMessage, error: unknown): void {
-		this.logger.error("flume.failed", {
+		this.logger.warn("flume.failed", {
 			...this.context(sub, msg),
 			error: this.reason(error),
 		});

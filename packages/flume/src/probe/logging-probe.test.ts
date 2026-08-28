@@ -105,12 +105,12 @@ describe(LoggingProbe, () => {
 		]);
 	});
 
-	it("logs a failure at error with the error message", () => {
+	it("logs a failure at warn with the error message", () => {
 		probe.failed(sub, message(), new Error("handler blew up"));
 
 		expect(logger.lines).toEqual([
 			{
-				level: "error",
+				level: "warn",
 				event: "flume.failed",
 				fields: {
 					subscription: "svc:send-email",
