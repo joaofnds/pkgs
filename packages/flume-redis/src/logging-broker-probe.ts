@@ -37,13 +37,13 @@ export class LoggingBrokerProbe implements BrokerProbe {
 	}
 
 	reapFailed(error: unknown): void {
-		this.logger.error("flume.broker.reap_failed", {
+		this.logger.warn("flume.broker.reap_failed", {
 			error: this.reason(error),
 		});
 	}
 
 	heartbeatFailed(error: unknown): void {
-		this.logger.error("flume.broker.heartbeat_failed", {
+		this.logger.warn("flume.broker.heartbeat_failed", {
 			error: this.reason(error),
 		});
 	}

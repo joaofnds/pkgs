@@ -89,24 +89,40 @@ describe(LoggingBrokerProbe, () => {
 		]);
 	});
 
-	it("logs a reap failure at error with the reason", () => {
+	it("logs a reap failure at warn with the reason", () => {
 		probe.reapFailed(new Error("reap blew up"));
 
 		expect(logger.lines[0]).toEqual({
-			level: "error",
+			level: "warn",
 			event: "flume.broker.reap_failed",
 			fields: { error: "reap blew up" },
 		});
 	});
 
-	it("logs a heartbeat failure at error with the reason", () => {
+	it("logs a heartbeat failure at warn with the reason", () => {
 		probe.heartbeatFailed(new Error("hb blew up"));
 
 		expect(logger.lines[0]).toEqual({
-			level: "error",
+			level: "warn",
 			event: "flume.broker.heartbeat_failed",
 			fields: { error: "hb blew up" },
 		});
+	});
+
+	it("logs a consumer stop at error with the stream, group and reason", () => {
+		probe.consumerStopped("orders", "orders__workers", new Error("boom"));
+
+		expect(logger.lines).toEqual([
+			{
+				level: "error",
+				event: "flume.broker.consumer_stopped",
+				fields: {
+					stream: "orders",
+					group: "orders__workers",
+					error: "boom",
+				},
+			},
+		]);
 	});
 
 	it("logs a redrive at info with the result", () => {
