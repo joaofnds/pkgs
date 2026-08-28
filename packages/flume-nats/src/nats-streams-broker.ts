@@ -7,7 +7,6 @@ import {
 	Topic,
 } from "@joaofnds/flume";
 import {
-	ConsumerMessages,
 	JetStreamClient,
 	JetStreamManager,
 	jetstream,
@@ -21,6 +20,7 @@ import { ConnectionLifecycle } from "./connection-lifecycle";
 import { consumeOptionsFor } from "./consume-options";
 import { ConsumerDrain } from "./consumer-drain";
 import { ConsumerHealth } from "./consumer-health";
+import { ConsumerRegistry } from "./consumer-registry";
 import { GuardedBrokerProbe } from "./guarded-broker-probe";
 import { ensureConsumer, ensureStream } from "./jetstream-topology";
 import { NoopBrokerProbe } from "./noop-broker-probe";
@@ -40,7 +40,7 @@ interface Connection {
 export class NatsStreamsBroker implements Broker {
 	private connection?: Connection;
 	private streamReady = false;
-	private readonly running: ConsumerMessages[] = [];
+	private readonly running = new ConsumerRegistry();
 	private readonly options: ResolvedNatsOptions;
 	private readonly probe: BrokerProbe;
 
@@ -68,9 +68,7 @@ export class NatsStreamsBroker implements Broker {
 	}
 
 	async close(): Promise<void> {
-		for (const messages of this.running.splice(0)) {
-			messages.stop();
-		}
+		this.running.stopAll();
 		if (this.connection) {
 			await this.connection.nc.close();
 			this.connection = undefined;
@@ -98,7 +96,7 @@ export class NatsStreamsBroker implements Broker {
 		// registered before any await: notify() only reaches listeners already
 		// registered, and the initial pull fires from the constructor
 		const status = messages.status();
-		this.running.push(messages);
+		this.running.add(messages);
 		void new ConsumerHealth(this.probe).watch(
 			status,
 			subjectFor(sub.topic.name),
@@ -113,7 +111,7 @@ export class NatsStreamsBroker implements Broker {
 
 		return {
 			stop: async () => {
-				messages.stop();
+				this.running.stop(messages);
 			},
 		};
 	}
