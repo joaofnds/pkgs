@@ -74,4 +74,21 @@ describe(ConsumerRegistry, () => {
 			expect(registry.size).toBe(0);
 		});
 	});
+
+	describe("stopAll", () => {
+		it("stops every registered consumer and empties the registry", () => {
+			const registry = new ConsumerRegistry();
+			const handles = [
+				new FakeConsumerHandle(),
+				new FakeConsumerHandle(),
+				new FakeConsumerHandle(),
+			];
+			for (const handle of handles) registry.add(handle);
+
+			registry.stopAll();
+
+			expect(registry.size).toBe(0);
+			for (const handle of handles) expect(handle.stopCalls).toBe(1);
+		});
+	});
 });

@@ -19,4 +19,8 @@ export class ConsumerRegistry {
 		if (!this.handles.delete(handle)) return;
 		handle.stop();
 	}
+
+	stopAll(): void {
+		for (const handle of [...this.handles]) this.stop(handle);
+	}
 }
