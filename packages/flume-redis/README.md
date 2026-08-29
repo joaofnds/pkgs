@@ -76,12 +76,22 @@ new RedisStreamsBroker({
   reclaim: {
     interval: 5000,                 // integer >= 1: floor between one consumer's reclaim turns, in ms
     minIdleTime: 30000,             // integer >= 0: how long a message sits unacked before a peer may claim it
-    throughputThreshold: 1000,      // finite >= 0: claim only while local throughput is below this, in msg/s
+    throughputThreshold: 1000,      // finite >= 0: claim only while THIS consumer's throughput is below this, in msg/s
   },
   broadcast: { heartbeatInterval: 10000, heartbeatTtl: 30000 },
   reaper: { interval: 30000, trim: false },
 });
 ```
+
+`reclaim.throughputThreshold` is **per-consumer**: the gate compares it against the
+throughput of the consumer whose group is about to be claimed from, so one busy
+subscription can no longer hold another subscription's recovery shut. (It was broker-wide
+before; the name, the type and the default of 1000 are unchanged, and at any given value
+the gate is never less permissive than it was, and strictly more so for any consumer whose
+peers took traffic in the window.) Of the two slow-consumer mitigations,
+**`minIdleTime` above your max handler duration is the one of record** — set it
+deliberately. The throughput gate is a secondary proxy for a peer process sitting
+mid-handler, and no in-process number can observe that directly.
 
 Every numeric option is parsed at construction, so a value outside its domain throws
 instead of degrading somewhere deep in the adapter. The errors are exported and carry the

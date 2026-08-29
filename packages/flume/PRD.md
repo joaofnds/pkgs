@@ -683,7 +683,9 @@ reclaim/reaper health) are observable:
    (`connected`/`disconnected`/`reconnected` + `deliveryFailed`).
 5. **Saturation / backlog — exposed.** `RedisStreamsBroker.sampleSaturation()` returns
    per-consumer `streamDepth` (XLEN), `pendingCount` + `consumerLag` (one `XINFO GROUPS`
-   per stream), broker-wide `throughputPerSecond` (the in-memory `Throughput`), and
+   per stream) and `throughputPerSecond` (that consumer's own in-memory `Throughput`, the
+   number its reclaim gate reads), broker-wide `throughputPerSecond` (a second
+   `Throughput`, this process across every consumer), and
    `reapSweepsSkipped` / `heartbeatSweepsSkipped` — the ticks each maintenance timer dropped
    because its previous sweep was still running. A rising skip count is the operator-visible
    statement that maintenance is not keeping up; both are in-memory and cost no Redis call.
