@@ -18,6 +18,7 @@ export * from "./invalid-timeout-error";
 export * from "./logging-broker-probe";
 export * from "./noop-broker-probe";
 export * from "./options";
+export * from "./read-deadline-error";
 export * from "./reap-result";
 export * from "./redis-streams-broker";
 export * from "./redrive-result";

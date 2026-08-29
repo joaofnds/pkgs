@@ -18,11 +18,21 @@ import { BrokerNotConnectedError } from "./broker-not-connected-error";
 import { BrokerProbe } from "./broker-probe";
 import { BrokerSaturation } from "./broker-saturation";
 import { ClientLifecycle } from "./client-lifecycle";
-import { createReadClient, createWriteClient, WriteClient } from "./clients";
+import {
+	createReadClient,
+	createWriteClient,
+	ReadClient,
+	WriteClient,
+} from "./clients";
 import { ConsumerSaturation } from "./consumer-saturation";
 import { ConsumerState } from "./consumer-state";
 import { RedisDeliveredMessage } from "./delivered-message";
-import { asBrokerError, isClientClosedError, isNoGroupError } from "./errors";
+import {
+	asBrokerError,
+	isClientClosedError,
+	isNoGroupError,
+	isReadDeadlineError,
+} from "./errors";
 import { GuardedBrokerProbe } from "./guarded-broker-probe";
 import { MaintenanceSweep } from "./maintenance-sweep";
 import { NoopBrokerProbe } from "./noop-broker-probe";
@@ -31,6 +41,7 @@ import {
 	ResolvedOptions,
 	resolveOptions,
 } from "./options";
+import { ReadDeadlineError } from "./read-deadline-error";
 import { RedriveResult } from "./redrive-result";
 import { minStreamId } from "./stream-id";
 
@@ -38,6 +49,7 @@ const PAYLOAD_FIELD = "payload";
 const REGISTRY_SCAN_COUNT = 100;
 const READ_BACKOFF_STEP = 50;
 const READ_BACKOFF_JITTER = 200;
+const READ_DEADLINE_GRACE = 5000;
 
 export class RedisStreamsBroker implements Broker {
 	private readonly options: ResolvedOptions;
@@ -145,6 +157,7 @@ export class RedisStreamsBroker implements Broker {
 			readClient,
 			throughput,
 			stopped: false,
+			readClientAborted: false,
 			consecutiveReadFailures: 0,
 			reclaimCursor: "0",
 			lastReclaimAt: 0,
@@ -267,11 +280,26 @@ export class RedisStreamsBroker implements Broker {
 
 	private async readLoop(state: ConsumerState): Promise<void> {
 		while (!state.stopped) {
+			if (state.readClientAborted) {
+				try {
+					await this.replaceReadClient(state);
+				} catch (error) {
+					if (this.stopsConsumer(state, error)) return;
+					await this.stallConsumer(state, error);
+					continue;
+				}
+			}
+
 			try {
 				await this.reclaimTurn(state);
 			} catch (error) {
 				if (this.stopsConsumer(state, error)) return;
+				if (isReadDeadlineError(error)) {
+					await this.stallConsumer(state, error);
+					continue;
+				}
 				this.probe.reclaimFailed(error);
+				if (state.readClientAborted) continue;
 			}
 
 			try {
@@ -284,12 +312,73 @@ export class RedisStreamsBroker implements Broker {
 		}
 	}
 
+	// The deadline is armed around an awaited read-client command and cleared when
+	// it settles, so it never spans handler dispatch: both turns await their command
+	// before Promise.all(deliver), and acks leave on the write client.
+	private async withReadDeadline<T>(
+		state: ConsumerState,
+		operation: string,
+		work: (client: ReadClient) => Promise<T>,
+	): Promise<T> {
+		const deadline = this.options.readTimeout + READ_DEADLINE_GRACE;
+		const client = state.readClient;
+		let timer: NodeJS.Timeout | undefined;
+
+		try {
+			// Promise.race, not a bare void: an abandoned promise with no handler
+			// becomes an unhandled rejection when its client is destroyed.
+			return await Promise.race([
+				work(client),
+				new Promise<never>((_resolve, reject) => {
+					timer = setTimeout(
+						() => reject(new ReadDeadlineError(operation, deadline)),
+						deadline,
+					);
+				}),
+			]);
+		} catch (error) {
+			// destroy() after the race settles: destroying first would reject the
+			// in-flight command with DisconnectsClientError and win the race with it.
+			if (isReadDeadlineError(error)) this.abortReadClient(state, client);
+			throw error;
+		} finally {
+			clearTimeout(timer);
+		}
+	}
+
+	private abortReadClient(state: ConsumerState, client: ReadClient): void {
+		state.readClientAborted = true;
+		if (client.isOpen) client.destroy();
+	}
+
+	private async replaceReadClient(state: ConsumerState): Promise<void> {
+		const client = createReadClient(this.options.redis);
+		// Assigned before the await so a concurrent stopConsumer can destroy a
+		// client that is still connecting.
+		state.readClient = client;
+		await this.withReadDeadline(state, "connect", (fresh) => fresh.connect());
+
+		// connect() resolves on a client destroyed mid-connect, so isOpen is what
+		// says the replacement succeeded. ReadDeadlineError, never ClientClosedError:
+		// the latter would route through stopsConsumer and stop a recoverable consumer.
+		if (!client.isOpen) {
+			this.abortReadClient(state, client);
+			throw new ReadDeadlineError(
+				"connect",
+				this.options.readTimeout + READ_DEADLINE_GRACE,
+			);
+		}
+		state.readClientAborted = false;
+	}
+
 	private async readTurn(state: ConsumerState): Promise<void> {
-		const response = await state.readClient.xReadGroup(
-			state.group,
-			this.options.consumerName,
-			[{ key: state.stream, id: ">" }],
-			{ BLOCK: this.options.readTimeout, COUNT: this.options.readCount },
+		const response = await this.withReadDeadline(state, "xReadGroup", (client) =>
+			client.xReadGroup(
+				state.group,
+				this.options.consumerName,
+				[{ key: state.stream, id: ">" }],
+				{ BLOCK: this.options.readTimeout, COUNT: this.options.readCount },
+			),
 		);
 		if (!response) return;
 

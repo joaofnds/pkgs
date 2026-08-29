@@ -9,9 +9,10 @@ export interface ConsumerState {
 	readonly group: string;
 	readonly broadcast: boolean;
 	readonly deliver: (msg: DeliveredMessage) => Promise<void>;
-	readonly readClient: ReadClient;
+	readClient: ReadClient;
 	readonly throughput: Throughput;
 	stopped: boolean;
+	readClientAborted: boolean;
 	consecutiveReadFailures: number;
 	reclaimCursor: string;
 	lastReclaimAt: number;
