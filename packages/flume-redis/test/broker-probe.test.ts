@@ -209,6 +209,46 @@ describe("BrokerProbe wiring", () => {
 		}
 	});
 
+	it("restarts the stall count once a read succeeds again", async () => {
+		await using harness = await BrokerHarness.start();
+		const deny = ["ACL", "SETUSER", "readless", "on", ">pw", "~*", "+@all"];
+		await harness.maint.sendCommand([...deny, "-xreadgroup"]);
+		const timeline = new StallTimeline();
+		const readless = await BrokerHarness.start(
+			{ redis: { url: "redis://readless:pw@localhost:6381" } },
+			timeline,
+		);
+
+		try {
+			const topic = uniqueTopic();
+			const deliveries = new Deliveries();
+			await readless.broker.consume(
+				subscription(topic, "h"),
+				deliveries.deliver,
+			);
+			await waitFor(() => timeline.stalledAt.length >= 2, {
+				message: "a denied XREADGROUP should surface as a consumer stall",
+			});
+
+			await harness.maint.sendCommand(deny);
+			await readless.broker.publish(new Topic(topic), encode("restored"));
+			await waitFor(() => deliveries.messages.length === 1, {
+				message: "the loop should deliver again once the ACL is restored",
+			});
+			const beforeRelapse = timeline.consumerStalledCalls.length;
+			await harness.maint.sendCommand([...deny, "-xreadgroup"]);
+			await waitFor(
+				() => timeline.consumerStalledCalls.length > beforeRelapse,
+				{ message: "revoking XREADGROUP again should surface a fresh stall" },
+			);
+
+			expect(timeline.consumerStalledCalls[beforeRelapse].consecutive).toBe(2);
+		} finally {
+			await readless.stop();
+			await harness.maint.sendCommand(["ACL", "DELUSER", "readless"]);
+		}
+	});
+
 	it("reports neither a reclaim failure nor a stop for a consumer that was stopped", async () => {
 		await using harness = await start();
 		const topic = uniqueTopic();
