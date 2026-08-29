@@ -18,7 +18,7 @@ import { ConsumerStall } from "../src/consumer-stall";
 import { isNoGroupError } from "../src/errors";
 import { RecordingBrokerProbe } from "../src/test-support/recording-broker-probe";
 import { ThrowingBrokerProbe } from "../src/test-support/throwing-broker-probe";
-import { BrokerHarness } from "./support/harness";
+import { BrokerHarness, REDIS_URL } from "./support/harness";
 
 const NOOP_HANDLER: EventHandler = { async handle() {} };
 const NAMESPACE = "svc";
@@ -262,6 +262,28 @@ describe("BrokerProbe wiring", () => {
 
 		expect(probe.reclaimFailures).toEqual([]);
 		expect(probe.consumerStoppedCalls).toEqual([]);
+	});
+
+	it("survives a killed connection and resumes delivering", async () => {
+		await using harness = await start({
+			redis: { url: REDIS_URL, name: "flume-victim" },
+		});
+		const topic = uniqueTopic();
+		const deliveries = new Deliveries();
+		await harness.broker.consume(subscription(topic, "h"), deliveries.deliver);
+		await harness.broker.publish(new Topic(topic), encode("before"));
+		await waitFor(() => deliveries.messages.length === 1);
+
+		expect(await harness.killNamedClients("flume-victim")).toBeGreaterThan(0);
+
+		await waitFor(
+			() => probe.disconnectedCount >= 1 && probe.reconnectedCount >= 1,
+			{ message: "a killed write client should reconnect through the lifecycle" },
+		);
+		await harness.broker.publish(new Topic(topic), encode("after"));
+		await waitFor(() => deliveries.messages.length === 2, {
+			message: "delivery should resume once the clients are back",
+		});
 	});
 
 	it("reports the groups destroyed by the reaper", async () => {

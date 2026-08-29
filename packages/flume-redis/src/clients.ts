@@ -19,12 +19,22 @@ export type WriteClient = ReturnType<typeof createWriteClient>;
 
 // Pins RESP 2 and maps blob→Buffer for binary-clean reads; node-redis's XINFO GROUPS has no RESP3 transform.
 export function createReadClient(options: RedisClientOptions): ReadClient {
-	return createClient({ ...options, RESP: 2 }).withTypeMapping({
+	const client = createClient({ ...options, RESP: 2 }).withTypeMapping({
 		[RESP_TYPES.BLOB_STRING]: Buffer,
 	});
+
+	// Drop this listener and a socket fault becomes an uncaught exception that kills the host process.
+	client.on("error", () => {});
+
+	return client;
 }
 
 // RESP 2: XINFO GROUPS has no RESP3 transform in node-redis v6.
 export function createWriteClient(options: RedisClientOptions) {
-	return createClient({ ...options, RESP: 2 });
+	const client = createClient({ ...options, RESP: 2 });
+
+	// Drop this listener and a socket fault becomes an uncaught exception that kills the host process.
+	client.on("error", () => {});
+
+	return client;
 }

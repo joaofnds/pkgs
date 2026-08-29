@@ -67,6 +67,20 @@ export class BrokerHarness {
 		return pending.length > 0 ? pending[0].deliveriesCounter : 0;
 	}
 
+	async killNamedClients(name: string): Promise<number> {
+		const list = String(await this.maint.sendCommand(["CLIENT", "LIST"]));
+		const ids = list
+			.split("\n")
+			.filter((line) => line.includes(`name=${name}`))
+			.flatMap((line) => line.match(/^id=(\d+)/)?.[1] ?? []);
+
+		for (const id of ids) {
+			await this.maint.sendCommand(["CLIENT", "KILL", "ID", id]);
+		}
+
+		return ids.length;
+	}
+
 	async streamLength(stream: string): Promise<number> {
 		return this.maint.xLen(stream);
 	}
