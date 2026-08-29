@@ -76,7 +76,8 @@ describe("read deadline", () => {
 
 			proxy.stallOn("XREADGROUP");
 			await waitFor(
-				() => probe.consumerStalledCalls.some((s) => isReadDeadlineError(s.error)),
+				() =>
+					probe.consumerStalledCalls.some((s) => isReadDeadlineError(s.error)),
 				{
 					timeout: STALL_TIMEOUT,
 					message: "a read whose reply never comes should stall the consumer",
@@ -112,7 +113,8 @@ describe("read deadline", () => {
 			);
 
 			await waitFor(
-				() => probe.consumerStalledCalls.some((s) => isReadDeadlineError(s.error)),
+				() =>
+					probe.consumerStalledCalls.some((s) => isReadDeadlineError(s.error)),
 				{
 					timeout: STALL_TIMEOUT,
 					message: "a claim whose reply never comes should stall the consumer",
@@ -153,7 +155,8 @@ describe("read deadline", () => {
 
 			proxy.stallOn("XPENDING");
 			await waitFor(
-				() => probe.consumerStalledCalls.some((s) => isReadDeadlineError(s.error)),
+				() =>
+					probe.consumerStalledCalls.some((s) => isReadDeadlineError(s.error)),
 				{
 					timeout: STALL_TIMEOUT,
 					message: "a pending batch whose reply never comes should stall",

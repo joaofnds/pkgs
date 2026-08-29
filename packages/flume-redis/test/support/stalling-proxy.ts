@@ -23,7 +23,9 @@ export class StallingProxy {
 		this.server = server;
 	}
 
-	static async start(upstream = "redis://localhost:6381"): Promise<StallingProxy> {
+	static async start(
+		upstream = "redis://localhost:6381",
+	): Promise<StallingProxy> {
 		const url = new URL(upstream);
 		const server = net.createServer();
 		const proxy = new StallingProxy(
@@ -32,7 +34,9 @@ export class StallingProxy {
 			Number(url.port || 6379),
 		);
 		server.on("connection", (client) => proxy.accept(client));
-		await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+		await new Promise<void>((resolve) =>
+			server.listen(0, "127.0.0.1", resolve),
+		);
 		return proxy;
 	}
 

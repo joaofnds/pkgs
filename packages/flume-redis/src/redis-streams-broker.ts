@@ -320,7 +320,7 @@ export class RedisStreamsBroker implements Broker {
 		operation: string,
 		work: (client: ReadClient) => Promise<T>,
 	): Promise<T> {
-		const deadline = this.options.readTimeout + READ_DEADLINE_GRACE;
+		const deadline = this.readDeadline();
 		const client = state.readClient;
 		let timer: NodeJS.Timeout | undefined;
 
@@ -346,6 +346,10 @@ export class RedisStreamsBroker implements Broker {
 		}
 	}
 
+	private readDeadline(): number {
+		return this.options.readTimeout + READ_DEADLINE_GRACE;
+	}
+
 	private abortReadClient(state: ConsumerState, client: ReadClient): void {
 		state.readClientAborted = true;
 		if (client.isOpen) client.destroy();
@@ -363,22 +367,22 @@ export class RedisStreamsBroker implements Broker {
 		// the latter would route through stopsConsumer and stop a recoverable consumer.
 		if (!client.isOpen) {
 			this.abortReadClient(state, client);
-			throw new ReadDeadlineError(
-				"connect",
-				this.options.readTimeout + READ_DEADLINE_GRACE,
-			);
+			throw new ReadDeadlineError("connect", this.readDeadline());
 		}
 		state.readClientAborted = false;
 	}
 
 	private async readTurn(state: ConsumerState): Promise<void> {
-		const response = await this.withReadDeadline(state, "xReadGroup", (client) =>
-			client.xReadGroup(
-				state.group,
-				this.options.consumerName,
-				[{ key: state.stream, id: ">" }],
-				{ BLOCK: this.options.readTimeout, COUNT: this.options.readCount },
-			),
+		const response = await this.withReadDeadline(
+			state,
+			"xReadGroup",
+			(client) =>
+				client.xReadGroup(
+					state.group,
+					this.options.consumerName,
+					[{ key: state.stream, id: ">" }],
+					{ BLOCK: this.options.readTimeout, COUNT: this.options.readCount },
+				),
 		);
 		if (!response) return;
 
