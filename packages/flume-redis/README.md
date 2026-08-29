@@ -71,12 +71,24 @@ new RedisStreamsBroker({
   redis: { url: "redis://localhost:6379" },
   consumerName: "billing-worker-1", // identity within a competing group (default {host}:{pid})
   instanceId: "billing-worker-1",   // identity of a broadcast group     (default {host}:{pid})
+  readTimeout: 5000,                // integer >= 1: the XREADGROUP BLOCK, in ms
   readCount: 10,                    // integer >= 1: batch size, claim page size, in-flight concurrency
-  reclaim: { interval: 5000, minIdleTime: 30000, throughputThreshold: 1000 },
+  reclaim: {
+    interval: 5000,                 // integer >= 1: floor between one consumer's reclaim turns, in ms
+    minIdleTime: 30000,             // integer >= 0: how long a message sits unacked before a peer may claim it
+    throughputThreshold: 1000,      // finite >= 0: claim only while local throughput is below this, in msg/s
+  },
   broadcast: { heartbeatInterval: 10000, heartbeatTtl: 30000 },
   reaper: { interval: 30000, trim: false },
 });
 ```
+
+Every numeric option is parsed at construction, so a value outside its domain throws
+instead of degrading somewhere deep in the adapter. The errors are exported and carry the
+option name and the value: `InvalidTimeoutError`, `InvalidCountError`,
+`InvalidIntervalError`, `InvalidIdleTimeError`, `InvalidRateError`, and
+`InvalidBroadcastOptionsError`. `readTimeout: 0` is the one worth calling out: `BLOCK 0`
+waits forever, and no client-side timeout in `@redis/client` 6.x will cut it short.
 
 In containerized fleets where pids collide (pid 1 per container) or hostnames are
 shared, **override both `consumerName` and `instanceId`** — otherwise broadcast
