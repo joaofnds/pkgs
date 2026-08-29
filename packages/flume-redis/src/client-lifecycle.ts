@@ -8,6 +8,7 @@ export interface LifecycleEmitter {
 
 export class ClientLifecycle {
 	private connected = false;
+	private abandoned = false;
 
 	constructor(private readonly probe: BrokerProbe) {}
 
@@ -25,7 +26,9 @@ export class ClientLifecycle {
 		});
 		client.on("error", (error) => {
 			if (client.isOpen) return;
+			if (this.abandoned) return;
 
+			this.abandoned = true;
 			this.probe.connectionAbandoned(error);
 		});
 	}

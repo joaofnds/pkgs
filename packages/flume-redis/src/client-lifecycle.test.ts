@@ -75,6 +75,14 @@ describe(ClientLifecycle, () => {
 		expect(probe.connectionAbandonedCalls).toEqual([]);
 	});
 
+	it("reports a connection abandoned at most once", () => {
+		client.emit("ready");
+		client.giveUp(new Error("first"));
+		client.giveUp(new Error("second"));
+
+		expect(probe.connectionAbandonedCalls).toEqual([new Error("first")]);
+	});
+
 	it("reports disconnected on reconnecting", () => {
 		client.emit("ready");
 		client.emit("reconnecting");
