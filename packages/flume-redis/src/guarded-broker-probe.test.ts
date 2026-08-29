@@ -22,6 +22,12 @@ describe(GuardedBrokerProbe, () => {
 		probe.reapFailed(new Error("reap boom"));
 		probe.heartbeatFailed(new Error("hb boom"));
 		probe.redrove({ redriven: 4, skipped: 1 });
+		probe.consumerStalled({
+			stream: "stream",
+			group: "group",
+			consecutive: 2,
+			error: new Error("stall"),
+		});
 		probe.consumerStopped({
 			stream: "stream",
 			group: "group",
@@ -39,6 +45,14 @@ describe(GuardedBrokerProbe, () => {
 		expect(delegate.reapFailures).toHaveLength(1);
 		expect(delegate.heartbeatFailures).toHaveLength(1);
 		expect(delegate.redroveResults).toEqual([{ redriven: 4, skipped: 1 }]);
+		expect(delegate.consumerStalledCalls).toEqual([
+			{
+				stream: "stream",
+				group: "group",
+				consecutive: 2,
+				error: new Error("stall"),
+			},
+		]);
 		expect(delegate.consumerStoppedCalls).toEqual([
 			{ stream: "stream", group: "group", error: new Error("nogroup") },
 		]);
@@ -58,6 +72,14 @@ describe(GuardedBrokerProbe, () => {
 		expect(() => throwing.reapFailed(new Error("x"))).not.toThrow();
 		expect(() => throwing.heartbeatFailed(new Error("x"))).not.toThrow();
 		expect(() => throwing.redrove({ redriven: 0, skipped: 0 })).not.toThrow();
+		expect(() =>
+			throwing.consumerStalled({
+				stream: "stream",
+				group: "group",
+				consecutive: 2,
+				error: new Error("x"),
+			}),
+		).not.toThrow();
 		expect(() =>
 			throwing.consumerStopped({
 				stream: "stream",
