@@ -310,7 +310,9 @@ describe("BrokerProbe wiring", () => {
 
 		await waitFor(
 			() => probe.disconnectedCount >= 1 && probe.reconnectedCount >= 1,
-			{ message: "a killed write client should reconnect through the lifecycle" },
+			{
+				message: "a killed write client should reconnect through the lifecycle",
+			},
 		);
 		await harness.broker.publish(new Topic(topic), encode("after"));
 		await waitFor(() => deliveries.messages.length === 2, {
