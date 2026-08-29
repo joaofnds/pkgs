@@ -17,12 +17,7 @@ import { BrokerNotConnectedError } from "./broker-not-connected-error";
 import { BrokerProbe } from "./broker-probe";
 import { BrokerSaturation } from "./broker-saturation";
 import { ClientLifecycle } from "./client-lifecycle";
-import {
-	createBlockingReadClient,
-	createReadClient,
-	createWriteClient,
-	WriteClient,
-} from "./clients";
+import { createReadClient, createWriteClient, WriteClient } from "./clients";
 import { ConsumerSaturation } from "./consumer-saturation";
 import { ConsumerState } from "./consumer-state";
 import { RedisDeliveredMessage } from "./delivered-message";
@@ -128,10 +123,7 @@ export class RedisStreamsBroker implements Broker {
 			await this.registerBroadcastGroup(stream, group);
 		}
 
-		const readClient = createBlockingReadClient(
-			this.options.redis,
-			this.options.readTimeout,
-		);
+		const readClient = createReadClient(this.options.redis);
 		await readClient.connect();
 
 		const state: ConsumerState = {
