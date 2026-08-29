@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from "node:timers/promises";
 import {
 	DeliveredMessage,
 	DeliveryMode,
@@ -196,5 +197,39 @@ describe("saturation gauges", () => {
 		expect(
 			snapshotFor(saturation, idleTopic, "flume:idle")?.throughputPerSecond,
 		).toBe(0);
+	});
+
+	it("counts only a redelivering consumer's fresh reads as throughput", async () => {
+		await using harness = await BrokerHarness.start({
+			reclaim: {
+				interval: 50,
+				minIdleTime: 100,
+				throughputThreshold: 1_000_000,
+			},
+		});
+		const topic = uniqueTopic();
+		const deliveries = new Deliveries();
+		deliveries.mode = "nack";
+		await harness.broker.consume(subscription(topic, "h"), deliveries.deliver);
+
+		await harness.broker.publish(new Topic(topic), encode("stuck"));
+		await waitFor(() => deliveries.messages.some((m) => m.deliveryCount >= 6), {
+			message: "one fresh read and five redeliveries should land",
+		});
+		await waitFor(
+			async () =>
+				(snapshotFor(await harness.broker.sampleSaturation(), topic, "flume:h")
+					?.throughputPerSecond ?? 0) > 0,
+			{ message: "the fresh read should reach a probe slot" },
+		);
+		await sleep(1100);
+
+		const snapshot = snapshotFor(
+			await harness.broker.sampleSaturation(),
+			topic,
+			"flume:h",
+		);
+
+		expect(snapshot?.throughputPerSecond).toBeLessThan(0.05);
 	});
 });
