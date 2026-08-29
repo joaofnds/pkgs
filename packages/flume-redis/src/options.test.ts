@@ -1,4 +1,9 @@
 import { describe, expect, it } from "vitest";
+import {
+	InvalidIdleTimeError,
+	InvalidRateError,
+	InvalidTimeoutError,
+} from "./index";
 import { InvalidCountError } from "./invalid-count-error";
 import { InvalidIntervalError } from "./invalid-interval-error";
 import {
@@ -35,6 +40,10 @@ const INTERVAL_OPTIONS = [
 
 const REJECTED_INTERVALS = [0, -1, 1.5];
 const REJECTED_COUNTS = [0, -1, 1.5];
+const REJECTED_TIMEOUTS = [0, -1, 1.5];
+const REJECTED_IDLE_TIMES = [-1, 1.5];
+const REJECTED_RATES = [-1, Number.NaN, Number.POSITIVE_INFINITY];
+const ACCEPTED_RATES = [0, 1.5];
 
 const intervalCases = INTERVAL_OPTIONS.flatMap(({ option, withInterval }) =>
 	REJECTED_INTERVALS.map((value) => ({ option, withInterval, value })),
@@ -86,6 +95,58 @@ describe("resolveOptions", () => {
 		expect(thrown).toBeInstanceOf(InvalidCountError);
 		expect(thrown).toMatchObject({ option: "readCount", value });
 	});
+
+	it.each(REJECTED_TIMEOUTS)("rejects readTimeout of %s", (value) => {
+		const thrown = thrownBy(() =>
+			resolveOptions({ redis, readTimeout: value }),
+		);
+
+		expect(thrown).toBeInstanceOf(InvalidTimeoutError);
+		expect(thrown).toMatchObject({ option: "readTimeout", value });
+	});
+
+	it("accepts the smallest readTimeout that still blocks", () => {
+		expect(() => resolveOptions({ redis, readTimeout: 1 })).not.toThrow();
+	});
+
+	it.each(REJECTED_IDLE_TIMES)("rejects reclaim.minIdleTime of %s", (value) => {
+		const thrown = thrownBy(() =>
+			resolveOptions({ redis, reclaim: { minIdleTime: value } }),
+		);
+
+		expect(thrown).toBeInstanceOf(InvalidIdleTimeError);
+		expect(thrown).toMatchObject({ option: "reclaim.minIdleTime", value });
+	});
+
+	it("accepts a reclaim.minIdleTime of zero, which claims anything pending", () => {
+		expect(() =>
+			resolveOptions({ redis, reclaim: { minIdleTime: 0 } }),
+		).not.toThrow();
+	});
+
+	it.each(REJECTED_RATES)(
+		"rejects reclaim.throughputThreshold of %s",
+		(value) => {
+			const thrown = thrownBy(() =>
+				resolveOptions({ redis, reclaim: { throughputThreshold: value } }),
+			);
+
+			expect(thrown).toBeInstanceOf(InvalidRateError);
+			expect(thrown).toMatchObject({
+				option: "reclaim.throughputThreshold",
+				value,
+			});
+		},
+	);
+
+	it.each(ACCEPTED_RATES)(
+		"accepts a reclaim.throughputThreshold of %s",
+		(value) => {
+			expect(() =>
+				resolveOptions({ redis, reclaim: { throughputThreshold: value } }),
+			).not.toThrow();
+		},
+	);
 
 	it("rejects a zero heartbeat interval before the TTL rule", () => {
 		const thrown = thrownBy(() =>

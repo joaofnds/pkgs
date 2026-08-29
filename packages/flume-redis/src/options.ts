@@ -1,7 +1,10 @@
 import { hostname } from "node:os";
 import { RedisClientOptions } from "redis";
 import { InvalidCountError } from "./invalid-count-error";
+import { InvalidIdleTimeError } from "./invalid-idle-time-error";
 import { InvalidIntervalError } from "./invalid-interval-error";
+import { InvalidRateError } from "./invalid-rate-error";
+import { InvalidTimeoutError } from "./invalid-timeout-error";
 
 export class InvalidBroadcastOptionsError extends Error {
 	constructor(heartbeatInterval: number, heartbeatTtl: number) {
@@ -70,13 +73,17 @@ export function resolveOptions(
 	options: RedisStreamsBrokerOptions,
 ): ResolvedOptions {
 	const defaultId = `${hostname()}:${process.pid}`;
+	const readTimeout = options.readTimeout ?? DEFAULT_READ_TIMEOUT;
 	const readCount = options.readCount ?? DEFAULT_READ_COUNT;
 	const reclaim = { ...DEFAULT_RECLAIM, ...options.reclaim };
 	const broadcast = { ...DEFAULT_BROADCAST, ...options.broadcast };
 	const reaper = { ...DEFAULT_REAPER, ...options.reaper };
 
+	requireTimeout("readTimeout", readTimeout);
 	requireCount("readCount", readCount);
 	requireInterval("reclaim.interval", reclaim.interval);
+	requireIdleTime("reclaim.minIdleTime", reclaim.minIdleTime);
+	requireRate("reclaim.throughputThreshold", reclaim.throughputThreshold);
 	requireInterval("reaper.interval", reaper.interval);
 	requireInterval("broadcast.heartbeatInterval", broadcast.heartbeatInterval);
 	if (broadcast.heartbeatTtl <= broadcast.heartbeatInterval) {
@@ -90,7 +97,7 @@ export function resolveOptions(
 		redis: options.redis,
 		consumerName: options.consumerName ?? defaultId,
 		instanceId: options.instanceId ?? defaultId,
-		readTimeout: options.readTimeout ?? DEFAULT_READ_TIMEOUT,
+		readTimeout,
 		readCount,
 		reclaim,
 		broadcast,
@@ -102,6 +109,24 @@ function requireInterval(option: string, value: number): void {
 	if (Number.isSafeInteger(value) && value >= 1) return;
 
 	throw new InvalidIntervalError(option, value);
+}
+
+function requireTimeout(option: string, value: number): void {
+	if (Number.isSafeInteger(value) && value >= 1) return;
+
+	throw new InvalidTimeoutError(option, value);
+}
+
+function requireIdleTime(option: string, value: number): void {
+	if (Number.isSafeInteger(value) && value >= 0) return;
+
+	throw new InvalidIdleTimeError(option, value);
+}
+
+function requireRate(option: string, value: number): void {
+	if (Number.isFinite(value) && value >= 0) return;
+
+	throw new InvalidRateError(option, value);
 }
 
 function requireCount(option: string, value: number): void {
