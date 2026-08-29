@@ -1,5 +1,6 @@
 import { hostname } from "node:os";
 import { RedisClientOptions } from "redis";
+import { InvalidCountError } from "./invalid-count-error";
 import { InvalidIntervalError } from "./invalid-interval-error";
 
 export class InvalidBroadcastOptionsError extends Error {
@@ -14,7 +15,6 @@ export class InvalidBroadcastOptionsError extends Error {
 export interface ReclaimOptions {
 	readonly interval: number;
 	readonly minIdleTime: number;
-	readonly count: number;
 	readonly throughputThreshold: number;
 }
 
@@ -55,7 +55,6 @@ const DEFAULT_READ_COUNT = 10;
 const DEFAULT_RECLAIM: ReclaimOptions = {
 	interval: 5000,
 	minIdleTime: 30000,
-	count: 100,
 	throughputThreshold: 1000,
 };
 const DEFAULT_BROADCAST: BroadcastOptions = {
@@ -71,10 +70,12 @@ export function resolveOptions(
 	options: RedisStreamsBrokerOptions,
 ): ResolvedOptions {
 	const defaultId = `${hostname()}:${process.pid}`;
+	const readCount = options.readCount ?? DEFAULT_READ_COUNT;
 	const reclaim = { ...DEFAULT_RECLAIM, ...options.reclaim };
 	const broadcast = { ...DEFAULT_BROADCAST, ...options.broadcast };
 	const reaper = { ...DEFAULT_REAPER, ...options.reaper };
 
+	requireCount("readCount", readCount);
 	requireInterval("reclaim.interval", reclaim.interval);
 	requireInterval("reaper.interval", reaper.interval);
 	requireInterval("broadcast.heartbeatInterval", broadcast.heartbeatInterval);
@@ -90,7 +91,7 @@ export function resolveOptions(
 		consumerName: options.consumerName ?? defaultId,
 		instanceId: options.instanceId ?? defaultId,
 		readTimeout: options.readTimeout ?? DEFAULT_READ_TIMEOUT,
-		readCount: options.readCount ?? DEFAULT_READ_COUNT,
+		readCount,
 		reclaim,
 		broadcast,
 		reaper,
@@ -101,4 +102,10 @@ function requireInterval(option: string, value: number): void {
 	if (Number.isSafeInteger(value) && value >= 1) return;
 
 	throw new InvalidIntervalError(option, value);
+}
+
+function requireCount(option: string, value: number): void {
+	if (Number.isSafeInteger(value) && value >= 1) return;
+
+	throw new InvalidCountError(option, value);
 }

@@ -71,8 +71,8 @@ new RedisStreamsBroker({
   redis: { url: "redis://localhost:6379" },
   consumerName: "billing-worker-1", // identity within a competing group (default {host}:{pid})
   instanceId: "billing-worker-1",   // identity of a broadcast group     (default {host}:{pid})
-  readCount: 10,                    // batch size / in-flight concurrency per read
-  reclaim: { minIdleTime: 30000, count: 100, throughputThreshold: 1000 },
+  readCount: 10,                    // integer >= 1: batch size, claim page size, in-flight concurrency
+  reclaim: { interval: 5000, minIdleTime: 30000, throughputThreshold: 1000 },
   broadcast: { heartbeatInterval: 10000, heartbeatTtl: 30000 },
   reaper: { interval: 30000, trim: false },
 });

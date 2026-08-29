@@ -74,7 +74,6 @@ describe("BrokerProbe wiring", () => {
 			reclaim: {
 				interval: 50,
 				minIdleTime: 50,
-				count: 100,
 				throughputThreshold: 1_000_000,
 			},
 		});
@@ -208,7 +207,6 @@ describe("BrokerProbe wiring", () => {
 				reclaim: {
 					interval: 50,
 					minIdleTime: 50,
-					count: 100,
 					throughputThreshold: 1_000_000,
 				},
 			},

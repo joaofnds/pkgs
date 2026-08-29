@@ -12,7 +12,6 @@ export const REDIS_URL = "redis://localhost:6381";
 const TEST_RECLAIM = {
 	interval: 50,
 	minIdleTime: 50,
-	count: 100,
 	throughputThreshold: 1_000_000,
 };
 

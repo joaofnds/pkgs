@@ -66,7 +66,6 @@ function makeBroker(): ManagedBroker {
 		reclaim: {
 			interval: HOUR,
 			minIdleTime: HOUR,
-			count: 200,
 			throughputThreshold: 1e9,
 		},
 		broadcast: { heartbeatInterval: HOUR, heartbeatTtl: 2 * HOUR },

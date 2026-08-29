@@ -118,7 +118,6 @@ describe("RedisStreamsBroker (Redis-specific mechanics)", () => {
 			reclaim: {
 				interval: 60_000,
 				minIdleTime: 50,
-				count: 100,
 				throughputThreshold: 1_000_000,
 			},
 		});
@@ -140,7 +139,6 @@ describe("RedisStreamsBroker (Redis-specific mechanics)", () => {
 			reclaim: {
 				interval: 50,
 				minIdleTime: 50,
-				count: 100,
 				throughputThreshold: 0,
 			},
 		});

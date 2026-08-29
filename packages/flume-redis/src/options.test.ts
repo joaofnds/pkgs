@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { InvalidCountError } from "./invalid-count-error";
 import { InvalidIntervalError } from "./invalid-interval-error";
 import {
 	InvalidBroadcastOptionsError,
@@ -33,6 +34,7 @@ const INTERVAL_OPTIONS = [
 ];
 
 const REJECTED_INTERVALS = [0, -1, 1.5];
+const REJECTED_COUNTS = [0, -1, 1.5];
 
 const intervalCases = INTERVAL_OPTIONS.flatMap(({ option, withInterval }) =>
 	REJECTED_INTERVALS.map((value) => ({ option, withInterval, value })),
@@ -77,6 +79,13 @@ describe("resolveOptions", () => {
 			expect(thrown).toMatchObject({ option, value });
 		},
 	);
+
+	it.each(REJECTED_COUNTS)("rejects readCount of %s", (value) => {
+		const thrown = thrownBy(() => resolveOptions({ redis, readCount: value }));
+
+		expect(thrown).toBeInstanceOf(InvalidCountError);
+		expect(thrown).toMatchObject({ option: "readCount", value });
+	});
 
 	it("rejects a zero heartbeat interval before the TTL rule", () => {
 		const thrown = thrownBy(() =>
