@@ -272,26 +272,31 @@ export class RedisStreamsBroker implements Broker {
 			}
 
 			try {
-				const response = await state.readClient.xReadGroup(
-					state.group,
-					this.options.consumerName,
-					[{ key: state.stream, id: ">" }],
-					{ BLOCK: this.options.readTimeout, COUNT: this.options.readCount },
-				);
-				if (!response) continue;
-				for (const stream of response) {
-					// Concurrent dispatch so the batch's acks coalesce into one multi-id XACK
-					// (scheduleAck); a sequential `await` per message un-coalesces them and regresses throughput.
-					await Promise.all(
-						stream.messages.map((raw) => {
-							this.throughput.hit();
-							return this.deliver(state, idOf(raw.id), bodyOf(raw.message), 1);
-						}),
-					);
-				}
+				await this.readTurn(state);
 			} catch (error) {
 				if (this.stopsConsumer(state, error)) return;
 			}
+		}
+	}
+
+	private async readTurn(state: ConsumerState): Promise<void> {
+		const response = await state.readClient.xReadGroup(
+			state.group,
+			this.options.consumerName,
+			[{ key: state.stream, id: ">" }],
+			{ BLOCK: this.options.readTimeout, COUNT: this.options.readCount },
+		);
+		if (!response) return;
+
+		for (const stream of response) {
+			// Concurrent dispatch so the batch's acks coalesce into one multi-id XACK
+			// (scheduleAck); a sequential `await` per message un-coalesces them and regresses throughput.
+			await Promise.all(
+				stream.messages.map((raw) => {
+					this.throughput.hit();
+					return this.deliver(state, idOf(raw.id), bodyOf(raw.message), 1);
+				}),
+			);
 		}
 	}
 
