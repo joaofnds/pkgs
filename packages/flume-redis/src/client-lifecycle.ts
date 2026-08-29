@@ -33,6 +33,7 @@ export class ClientLifecycle {
 		});
 		client.on("error", (error) => {
 			if (client.isOpen) return;
+			if (this.state === "idle") return;
 			if (this.abandoned) return;
 
 			this.abandoned = true;
