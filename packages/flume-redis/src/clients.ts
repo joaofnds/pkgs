@@ -17,14 +17,21 @@ export type ReadClient = RedisClientType<
 >;
 export type WriteClient = ReturnType<typeof createWriteClient>;
 
+interface ErrorEmitter {
+	on(event: "error", listener: () => void): unknown;
+}
+
+// Without this listener a socket fault becomes an uncaught exception that kills the host process.
+function ignoreSocketErrors(client: ErrorEmitter): void {
+	client.on("error", () => {});
+}
+
 // Pins RESP 2 and maps blob→Buffer for binary-clean reads; node-redis's XINFO GROUPS has no RESP3 transform.
 export function createReadClient(options: RedisClientOptions): ReadClient {
 	const client = createClient({ ...options, RESP: 2 }).withTypeMapping({
 		[RESP_TYPES.BLOB_STRING]: Buffer,
 	});
-
-	// Drop this listener and a socket fault becomes an uncaught exception that kills the host process.
-	client.on("error", () => {});
+	ignoreSocketErrors(client);
 
 	return client;
 }
@@ -32,9 +39,7 @@ export function createReadClient(options: RedisClientOptions): ReadClient {
 // RESP 2: XINFO GROUPS has no RESP3 transform in node-redis v6.
 export function createWriteClient(options: RedisClientOptions) {
 	const client = createClient({ ...options, RESP: 2 });
-
-	// Drop this listener and a socket fault becomes an uncaught exception that kills the host process.
-	client.on("error", () => {});
+	ignoreSocketErrors(client);
 
 	return client;
 }

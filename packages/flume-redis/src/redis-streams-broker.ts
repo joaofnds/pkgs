@@ -20,7 +20,6 @@ import { BrokerSaturation } from "./broker-saturation";
 import { ClientLifecycle } from "./client-lifecycle";
 import { createReadClient, createWriteClient, WriteClient } from "./clients";
 import { ConsumerSaturation } from "./consumer-saturation";
-import { ConsumerStall } from "./consumer-stall";
 import { ConsumerState } from "./consumer-state";
 import { RedisDeliveredMessage } from "./delivered-message";
 import { asBrokerError, isClientClosedError, isNoGroupError } from "./errors";
@@ -308,19 +307,15 @@ export class RedisStreamsBroker implements Broker {
 		state.consecutiveReadFailures += 1;
 
 		if (state.consecutiveReadFailures > 1) {
-			this.probe.consumerStalled(this.stallOf(state, error));
+			this.probe.consumerStalled({
+				stream: state.stream,
+				group: state.group,
+				consecutive: state.consecutiveReadFailures,
+				error,
+			});
 		}
 
 		await sleep(this.readBackoff(state.consecutiveReadFailures));
-	}
-
-	private stallOf(state: ConsumerState, error: unknown): ConsumerStall {
-		return {
-			stream: state.stream,
-			group: state.group,
-			consecutive: state.consecutiveReadFailures,
-			error,
-		};
 	}
 
 	private readBackoff(consecutive: number): number {
