@@ -14,6 +14,7 @@ import {
 import { FakeProbe, RecordingHandler } from "@joaofnds/flume/testing";
 import { uniqueTopic, waitFor } from "@joaofnds/flume-tck";
 import { beforeEach, describe, expect, it } from "vitest";
+import { BrokerClosedError } from "../src/broker-closed-error";
 import { ConsumerStall } from "../src/consumer-stall";
 import { isNoGroupError } from "../src/errors";
 import { RecordingBrokerProbe } from "../src/test-support/recording-broker-probe";
@@ -303,6 +304,21 @@ describe("BrokerProbe wiring", () => {
 		await sleep(300);
 
 		expect(probe.connectionAbandonedCalls).toEqual([]);
+	});
+
+	it("reports a write client that gave up reconnecting", async () => {
+		await using harness = await start({
+			redis: { url: REDIS_URL, socket: { socketTimeout: 300 } },
+		});
+
+		await waitFor(() => probe.connectionAbandonedCalls.length === 1, {
+			message: "a write client that gave up should surface as abandoned",
+		});
+
+		expect(probe.disconnectedCount).toBe(0);
+		await expect(
+			harness.broker.publish(new Topic(uniqueTopic()), encode("after")),
+		).rejects.toBeInstanceOf(BrokerClosedError);
 	});
 
 	it("survives a killed connection and resumes delivering", async () => {
