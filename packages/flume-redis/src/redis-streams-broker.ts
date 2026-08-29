@@ -156,6 +156,7 @@ export class RedisStreamsBroker implements Broker {
 			deliver,
 			readClient,
 			stopped: false,
+			reclaimCursor: "0",
 			ackBatch: new AckBatch(),
 		};
 		this.consumers.add(state);
@@ -315,9 +316,13 @@ export class RedisStreamsBroker implements Broker {
 			state.group,
 			this.options.consumerName,
 			this.options.reclaim.minIdleTime,
-			"0",
+			state.reclaimCursor,
 			{ COUNT: this.options.readCount },
 		);
+		// idOf() normalizes the Buffer cursor so the "0-0" terminator compares (raw compare would loop forever).
+		const nextCursor = idOf(claim.nextId);
+		state.reclaimCursor = nextCursor === "0-0" ? "0" : nextCursor;
+
 		const pending = claim.messages.filter((raw) => raw !== null);
 		if (pending.length === 0) return;
 

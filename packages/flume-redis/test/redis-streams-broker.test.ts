@@ -89,24 +89,17 @@ describe("RedisStreamsBroker (Redis-specific mechanics)", () => {
 		});
 	});
 
-	it("reclaims the entire backlog when it exceeds the reclaim count", async () => {
-		await using small = await BrokerHarness.start({
-			reclaim: {
-				interval: 50,
-				minIdleTime: 50,
-				count: 5,
-				throughputThreshold: 1_000_000,
-			},
-		});
+	it("redelivers a backlog larger than one claim page without re-claiming the head", async () => {
+		await using paged = await BrokerHarness.start({ readCount: 5 });
 
 		const topic = uniqueTopic();
 		const deliveries = new Deliveries();
 		deliveries.mode = "nack";
-		await small.broker.consume(subscription(topic, "h"), deliveries.deliver);
+		await paged.broker.consume(subscription(topic, "h"), deliveries.deliver);
 
 		const backlog = 12;
 		for (let i = 0; i < backlog; i++) {
-			await small.broker.publish(new Topic(topic), encode(`m${i}`));
+			await paged.broker.publish(new Topic(topic), encode(`m${i}`));
 		}
 
 		const redeliveredIds = (): Set<string> =>
@@ -116,7 +109,7 @@ describe("RedisStreamsBroker (Redis-specific mechanics)", () => {
 					.map((m) => m.id),
 			);
 		await waitFor(() => redeliveredIds().size === backlog, {
-			message: "every nacked message in the backlog should be reclaimed",
+			message: "every nacked message in the backlog should be redelivered",
 		});
 	});
 

@@ -10,5 +10,6 @@ export interface ConsumerState {
 	readonly deliver: (msg: DeliveredMessage) => Promise<void>;
 	readonly readClient: ReadClient;
 	stopped: boolean;
+	reclaimCursor: string;
 	ackBatch: AckBatch;
 }
