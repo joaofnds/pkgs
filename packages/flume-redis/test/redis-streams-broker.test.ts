@@ -15,7 +15,7 @@ import { BrokerAlreadyConnectedError, RedisStreamsBroker } from "../src/index";
 import { BrokerHarness } from "./support/harness";
 
 // Adapter-specific behaviors that assert Redis Streams internals — the PEL, the
-// reclaim cursor sweep, the throughput gate. The cross-adapter port contract
+// read loop's reclaim turn and its cursor, the throughput gate. The cross-adapter port contract
 // (delivery, retry, dead-letter, competing, broadcast, startFrom) lives in
 // conformance.test.ts via @joaofnds/flume-tck and is not duplicated here.
 

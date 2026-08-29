@@ -476,7 +476,7 @@ Maps Flume concepts onto Redis Streams, reusing the techniques proven in
 | Broadcast                      | a **per-instance** group `flume:{sub.name}:{instanceId}` → every instance sees every message |
 | Delivery                       | `XREADGROUP GROUP flume:{sub.name} {consumer} … BLOCK … COUNT …` |
 | `deliveryCount`                | `1` on fresh `XREADGROUP >` (no count returned → attempt 1, no extra call); on reclaim, the count from `XAUTOCLAIM`/`XPENDING` |
-| Redelivery / reclaim           | periodic `XAUTOCLAIM` of messages idle past `minIdleTime`; **it increments the delivery count as it claims** (non-`JUSTID`) — see *Attempt accounting* |
+| Redelivery / reclaim           | one `XAUTOCLAIM` page of messages idle past `minIdleTime`, taken by the consumer's own read loop ahead of its `XREADGROUP`, never by a periodic sweep; **it increments the delivery count as it claims** (non-`JUSTID`) — see *Attempt accounting* |
 | ack                            | `XACK` |
 | nack                           | no-op (leave in PEL) → reclaimed after idle |
 | dead-letter                    | per-handler stream `{topic}:dead:{name}`: the **core frames a `DeadLetter` body** `{originalId, body}` (the id only exists at consume time) and `publish`es it through the generic Publisher; the adapter `XADD`s that body then `XACK`s the original, and MAY also surface `originalId` as a stream field for dedup/redrive — no core change needed |
@@ -489,10 +489,11 @@ Maps Flume concepts onto Redis Streams, reusing the techniques proven in
 only prefixes `flume:` and never needs to know the namespace — `namespace` has a
 single home (the facade), and the broker port stays fully transport-generic.
 
-**Clients.** Reuse `streams-connector`'s separation: a blocking read client, a
-reclaim client, and a write client (a blocking `XREADGROUP` holds its connection
-for up to the read timeout; multiplexing other commands behind it would
-serialize). **Client: `redis` v6 (node-redis)** — proven in-repo by
+**Clients.** A blocking read client per subscription plus one shared write
+client (a blocking `XREADGROUP` holds its connection for up to the read timeout;
+multiplexing other commands behind it would serialize). Reclaim needs no client
+of its own: the read loop issues `XAUTOCLAIM` between its own reads, when that
+connection is idle by construction. **Client: `redis` v6 (node-redis)** — proven in-repo by
 `streams-connector` for exactly these ops (`XAUTOCLAIM`/`XPENDING`), and keeping
 one Redis client across the monorepo avoids dependency sprawl. (If hard cluster /
 sentinel resilience later demands it, `ioredis` is the battle-tested fallback —
@@ -589,10 +590,10 @@ broker adapter, but the contract the core guarantees:
   the same id more than once.)
 - **Connection cost of per-handler groups (a hard limit, not a TODO).** Each
   subscription runs its own blocking `XREADGROUP` (which monopolizes a
-  connection), plus the shared reclaim and write clients — so a worker holds
-  `≈ subscriptions + 2` connections, per instance. This **cannot** be multiplexed
+  connection), plus the shared write client — so a worker holds
+  `≈ subscriptions + 1` connections, per instance. This **cannot** be multiplexed
   away: one `XREADGROUP` reads many streams but only for a single group, and our
-  groups are per-handler. At ~40 handlers × 20 instances that's ~840 connections —
+  groups are per-handler. At ~40 handlers × 20 instances that's ~820 connections —
   check it against your managed-Redis connection cap. It's a real ceiling on
   handlers-per-worker, stated as such (not a deferred optimization).
 
@@ -605,7 +606,7 @@ broker adapter, but the contract the core guarantees:
   accidentally share a group. The broker never sees `namespace` separately. Must
   be stable per service.
 - **Broker (Redis):** connection options, `instanceId` / consumer name,
-  `readTimeout`, reclaim `interval` / `minIdleTime` / `count`. Retry *cadence*
+  `readTimeout`, `readCount`, reclaim `interval` / `minIdleTime`. Retry *cadence*
   lives here (reclaim timing), not on `RetryPolicy`. **No `MAXLEN` on live
   streams** (§8); optional dead-letter `maxLen` and an optional MINID-reaper
   interval.
@@ -657,11 +658,12 @@ traffic, saturation) plus queue-specific signals (backlog depth, pending, lag,
 reclaim/reaper health) are observable:
 
 1. **Swallowed adapter failures — surfaced, and the maintenance plane is bounded.**
-   `flume-redis`'s `reclaim()`/`reap()`/`heartbeat()` timers route rejections to
-   `BrokerProbe.reclaimFailed`/`reapFailed`/`heartbeatFailed` (no more `.catch(() => {})`).
+   `flume-redis`'s `reap()`/`heartbeat()` timers route rejections to
+   `BrokerProbe.reapFailed`/`heartbeatFailed`, and a failing reclaim turn is classified in
+   the consumer's read loop and routed to `reclaimFailed` (no more `.catch(() => {})`).
    `flume-nats`'s `handle()` routes delivery failures to `BrokerProbe.deliveryFailed`;
    `drain()` stays silent (it only fires on expected shutdown teardown). A throwing-probe
-   test proves messaging is unaffected in both adapters. Each of the three Redis timers runs
+   test proves messaging is unaffected in both adapters. Each of the two Redis timers runs
    **at most one sweep at a time**: a tick arriving while its predecessor is in flight is
    skipped and counted, and the guard is released even when the sweep rejects. `reap()` reads
    **one bounded `SSCAN` page** of the broadcast-group registry per stream per sweep, with the
@@ -682,10 +684,9 @@ reclaim/reaper health) are observable:
 5. **Saturation / backlog — exposed.** `RedisStreamsBroker.sampleSaturation()` returns
    per-consumer `streamDepth` (XLEN), `pendingCount` + `consumerLag` (one `XINFO GROUPS`
    per stream), broker-wide `throughputPerSecond` (the in-memory `Throughput`), and
-   `reclaimSweepsSkipped` / `reapSweepsSkipped` / `heartbeatSweepsSkipped` — the ticks each
-   maintenance timer dropped because its previous sweep was still running. A rising skip
-   count is the operator-visible statement that maintenance is not keeping up; the three
-   are in-memory and cost no Redis call.
+   `reapSweepsSkipped` / `heartbeatSweepsSkipped` — the ticks each maintenance timer dropped
+   because its previous sweep was still running. A rising skip count is the operator-visible
+   statement that maintenance is not keeping up; both are in-memory and cost no Redis call.
 
 **Remaining (tracked, lower priority):**
 - **No metrics sink ships.** Only logging impls (`LoggingProbe`, `LoggingBrokerProbe`)
