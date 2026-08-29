@@ -21,7 +21,6 @@ import {
 	createBlockingReadClient,
 	createReadClient,
 	createWriteClient,
-	ReadClient,
 	WriteClient,
 } from "./clients";
 import { ConsumerSaturation } from "./consumer-saturation";
@@ -47,7 +46,6 @@ export class RedisStreamsBroker implements Broker {
 	private readonly throughput: Throughput;
 	private readonly probe: BrokerProbe;
 	private writeClient?: WriteClient;
-	private reclaimClient?: ReadClient;
 	private readonly heartbeatSweep: MaintenanceSweep;
 	private readonly reapSweep: MaintenanceSweep;
 	private readonly consumers = new Set<ConsumerState>();
@@ -79,19 +77,11 @@ export class RedisStreamsBroker implements Broker {
 
 		try {
 			this.writeClient = createWriteClient(this.options.redis);
-			this.reclaimClient = createReadClient(this.options.redis);
 			new ClientLifecycle(this.probe).watch(this.writeClient);
-			await Promise.all([
-				this.writeClient.connect(),
-				this.reclaimClient.connect(),
-			]);
+			await this.writeClient.connect();
 		} catch (error) {
-			await Promise.allSettled([
-				this.writeClient?.close(),
-				this.reclaimClient?.close(),
-			]);
+			await Promise.allSettled([this.writeClient?.close()]);
 			this.writeClient = undefined;
-			this.reclaimClient = undefined;
 			throw error;
 		}
 
@@ -110,12 +100,8 @@ export class RedisStreamsBroker implements Broker {
 			state.readClient.destroy();
 		}
 		this.consumers.clear();
-		await Promise.allSettled([
-			this.writeClient?.close(),
-			this.reclaimClient?.close(),
-		]);
+		await Promise.allSettled([this.writeClient?.close()]);
 		this.writeClient = undefined;
-		this.reclaimClient = undefined;
 	}
 
 	async publish(topic: Topic, body: Bytes): Promise<void> {
@@ -179,8 +165,9 @@ export class RedisStreamsBroker implements Broker {
 	}): Promise<RedriveResult> {
 		const deadStream = `${opts.topic.name}:dead:${opts.name}`;
 		const redrivenKey = `flume:redriven:${deadStream}`;
-		const readClient = this.requireReclaimClient();
 		const writeClient = this.requireWriteClient();
+		const readClient = createReadClient(this.options.redis);
+		await readClient.connect();
 
 		let redriven = 0;
 		let skipped = 0;
@@ -202,7 +189,10 @@ export class RedisStreamsBroker implements Broker {
 			}
 		} catch (error) {
 			throw asBrokerError(error);
+		} finally {
+			await readClient.close();
 		}
+
 		const result: RedriveResult = { redriven, skipped };
 		this.probe.redrove(result);
 		return result;
@@ -526,7 +516,7 @@ export class RedisStreamsBroker implements Broker {
 		state: ConsumerState,
 		id: string,
 	): Promise<number> {
-		const pending = await this.requireReclaimClient().xPendingRange(
+		const pending = await state.readClient.xPendingRange(
 			state.stream,
 			state.group,
 			id,
@@ -583,11 +573,6 @@ export class RedisStreamsBroker implements Broker {
 	private requireWriteClient(): WriteClient {
 		if (this.writeClient === undefined) throw new BrokerNotConnectedError();
 		return this.writeClient;
-	}
-
-	private requireReclaimClient(): ReadClient {
-		if (this.reclaimClient === undefined) throw new BrokerNotConnectedError();
-		return this.reclaimClient;
 	}
 }
 
