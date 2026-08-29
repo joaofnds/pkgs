@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from "node:timers/promises";
 import {
 	Broker,
 	Bytes,
@@ -19,6 +20,7 @@ import { BrokerSaturation } from "./broker-saturation";
 import { ClientLifecycle } from "./client-lifecycle";
 import { createReadClient, createWriteClient, WriteClient } from "./clients";
 import { ConsumerSaturation } from "./consumer-saturation";
+import { ConsumerStall } from "./consumer-stall";
 import { ConsumerState } from "./consumer-state";
 import { RedisDeliveredMessage } from "./delivered-message";
 import { asBrokerError, isClientClosedError, isNoGroupError } from "./errors";
@@ -35,6 +37,8 @@ import { minStreamId } from "./stream-id";
 
 const PAYLOAD_FIELD = "payload";
 const REGISTRY_SCAN_COUNT = 100;
+const READ_BACKOFF_STEP = 50;
+const READ_BACKOFF_JITTER = 200;
 
 export class RedisStreamsBroker implements Broker {
 	private readonly options: ResolvedOptions;
@@ -136,6 +140,7 @@ export class RedisStreamsBroker implements Broker {
 			readClient,
 			throughput,
 			stopped: false,
+			consecutiveReadFailures: 0,
 			reclaimCursor: "0",
 			lastReclaimAt: 0,
 			ackBatch: new AckBatch(),
@@ -266,8 +271,10 @@ export class RedisStreamsBroker implements Broker {
 
 			try {
 				await this.readTurn(state);
+				state.consecutiveReadFailures = 0;
 			} catch (error) {
 				if (this.stopsConsumer(state, error)) return;
+				await this.stallConsumer(state, error);
 			}
 		}
 	}
@@ -292,6 +299,37 @@ export class RedisStreamsBroker implements Broker {
 				}),
 			);
 		}
+	}
+
+	private async stallConsumer(
+		state: ConsumerState,
+		error: unknown,
+	): Promise<void> {
+		state.consecutiveReadFailures += 1;
+
+		if (state.consecutiveReadFailures > 1) {
+			this.probe.consumerStalled(this.stallOf(state, error));
+		}
+
+		await sleep(this.readBackoff(state.consecutiveReadFailures));
+	}
+
+	private stallOf(state: ConsumerState, error: unknown): ConsumerStall {
+		return {
+			stream: state.stream,
+			group: state.group,
+			consecutive: state.consecutiveReadFailures,
+			error,
+		};
+	}
+
+	private readBackoff(consecutive: number): number {
+		const delay = Math.min(
+			2 ** consecutive * READ_BACKOFF_STEP,
+			this.options.readTimeout,
+		);
+
+		return delay + Math.floor(Math.random() * READ_BACKOFF_JITTER);
 	}
 
 	private stopConsumer(state: ConsumerState): void {

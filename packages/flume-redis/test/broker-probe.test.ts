@@ -14,6 +14,7 @@ import {
 import { FakeProbe, RecordingHandler } from "@joaofnds/flume/testing";
 import { uniqueTopic, waitFor } from "@joaofnds/flume-tck";
 import { beforeEach, describe, expect, it } from "vitest";
+import { ConsumerStall } from "../src/consumer-stall";
 import { isNoGroupError } from "../src/errors";
 import { RecordingBrokerProbe } from "../src/test-support/recording-broker-probe";
 import { ThrowingBrokerProbe } from "../src/test-support/throwing-broker-probe";
@@ -21,6 +22,7 @@ import { BrokerHarness } from "./support/harness";
 
 const NOOP_HANDLER: EventHandler = { async handle() {} };
 const NAMESPACE = "svc";
+const STALL_WINDOW = 6000;
 
 function subscription(
 	topic: string,
@@ -48,7 +50,19 @@ class Deliveries {
 	};
 }
 
+class StallTimeline extends RecordingBrokerProbe {
+	readonly stalledAt: number[] = [];
+
+	consumerStalled(stall: ConsumerStall): void {
+		super.consumerStalled(stall);
+		this.stalledAt.push(Date.now());
+	}
+}
+
 const encode = (text: string): Uint8Array => new TextEncoder().encode(text);
+
+const gapBefore = (times: number[], nth: number): number =>
+	times[nth - 1] - times[nth - 2];
 
 describe("BrokerProbe wiring", () => {
 	let probe: RecordingBrokerProbe;
@@ -146,6 +160,52 @@ describe("BrokerProbe wiring", () => {
 		} finally {
 			await claimless.stop();
 			await harness.maint.sendCommand(["ACL", "DELUSER", "claimless"]);
+		}
+	});
+
+	it("paces a read that keeps failing and reports it as a consumer stall", async () => {
+		await using harness = await BrokerHarness.start();
+		await harness.maint.sendCommand([
+			"ACL",
+			"SETUSER",
+			"readless",
+			"on",
+			">pw",
+			"~*",
+			"+@all",
+			"-xreadgroup",
+		]);
+		const timeline = new StallTimeline();
+		const readless = await BrokerHarness.start(
+			{
+				redis: { url: "redis://readless:pw@localhost:6381" },
+				readTimeout: 2000,
+			},
+			timeline,
+		);
+
+		try {
+			const startedAt = Date.now();
+			await readless.broker.consume(
+				subscription(uniqueTopic(), "h"),
+				new Deliveries().deliver,
+			);
+
+			await waitFor(() => timeline.stalledAt.length >= 4, {
+				message: "a denied XREADGROUP should surface as a consumer stall",
+			});
+			await sleep(STALL_WINDOW - (Date.now() - startedAt));
+
+			const first = timeline.consumerStalledCalls[0];
+			expect(first.consecutive).toBe(2);
+			expect(String(first.error)).toContain("NOPERM");
+			expect(timeline.consumerStalledCalls.length).toBeLessThanOrEqual(6);
+			expect(gapBefore(timeline.stalledAt, 4)).toBeGreaterThanOrEqual(
+				gapBefore(timeline.stalledAt, 2) + 300,
+			);
+		} finally {
+			await readless.stop();
+			await harness.maint.sendCommand(["ACL", "DELUSER", "readless"]);
 		}
 	});
 
