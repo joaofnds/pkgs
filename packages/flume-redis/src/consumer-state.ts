@@ -11,5 +11,6 @@ export interface ConsumerState {
 	readonly readClient: ReadClient;
 	stopped: boolean;
 	reclaimCursor: string;
+	lastReclaimAt: number;
 	ackBatch: AckBatch;
 }

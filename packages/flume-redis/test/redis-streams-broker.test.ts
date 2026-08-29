@@ -113,6 +113,28 @@ describe("RedisStreamsBroker (Redis-specific mechanics)", () => {
 		});
 	});
 
+	it("takes at most one reclaim turn per reclaim.interval", async () => {
+		await using spaced = await BrokerHarness.start({
+			reclaim: {
+				interval: 60_000,
+				minIdleTime: 50,
+				count: 100,
+				throughputThreshold: 1_000_000,
+			},
+		});
+
+		const topic = uniqueTopic();
+		const deliveries = new Deliveries();
+		deliveries.mode = "nack";
+		await spaced.broker.consume(subscription(topic, "h"), deliveries.deliver);
+
+		await spaced.broker.publish(new Topic(topic), encode("stuck"));
+		await waitFor(() => deliveries.messages.length === 1);
+
+		await sleep(300);
+		expect(deliveries.messages).toHaveLength(1);
+	});
+
 	it("does not reclaim while local throughput is above the gate threshold", async () => {
 		await using gated = await BrokerHarness.start({
 			reclaim: {

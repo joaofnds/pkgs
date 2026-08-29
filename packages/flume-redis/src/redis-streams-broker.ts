@@ -157,6 +157,7 @@ export class RedisStreamsBroker implements Broker {
 			readClient,
 			stopped: false,
 			reclaimCursor: "0",
+			lastReclaimAt: 0,
 			ackBatch: new AckBatch(),
 		};
 		this.consumers.add(state);
@@ -309,8 +310,11 @@ export class RedisStreamsBroker implements Broker {
 	}
 
 	private async reclaimTurn(state: ConsumerState): Promise<void> {
+		const now = Date.now();
+		if (now - state.lastReclaimAt < this.options.reclaim.interval) return;
 		if (!this.shouldReclaim()) return;
 
+		state.lastReclaimAt = now;
 		const claim = await state.readClient.xAutoClaim(
 			state.stream,
 			state.group,
