@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from "node:timers/promises";
 import {
 	DeliveredMessage,
 	DeliveryMode,
@@ -10,7 +11,7 @@ import { uniqueTopic, waitFor } from "@joaofnds/flume-tck";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { isReadDeadlineError } from "../src/errors";
 import { RecordingBrokerProbe } from "../src/test-support/recording-broker-probe";
-import { BrokerHarness } from "./support/harness";
+import { BrokerHarness, REDIS_URL } from "./support/harness";
 import { StallingProxy } from "./support/stalling-proxy";
 
 const NOOP_HANDLER: EventHandler = { async handle() {} };
@@ -169,6 +170,50 @@ describe("read deadline", () => {
 				timeout: STALL_TIMEOUT,
 				message: "the consumer should deliver again once the stall clears",
 			});
+		},
+		CASE_TIMEOUT,
+	);
+
+	it(
+		"does not fire on a handler batch that outlives the deadline",
+		async () => {
+			const clientName = `flume-slow-${Date.now()}`;
+			await using harness = await BrokerHarness.start(
+				{
+					redis: { url: REDIS_URL, name: clientName },
+					readCount: 1,
+				},
+				probe,
+			);
+			const topic = uniqueTopic();
+			const delivered: DeliveredMessage[] = [];
+			await harness.broker.consume(subscription(topic, "slow"), async (msg) => {
+				delivered.push(msg);
+				// Past the 5100ms deadline: a deadline that spanned handler dispatch
+				// would destroy this consumer's read client mid-batch.
+				await sleep(5300);
+				await msg.ack();
+			});
+
+			await publish(harness, topic);
+			await waitFor(() => delivered.length === 1, {
+				timeout: STALL_TIMEOUT,
+				message: "the slow handler should receive the first message",
+			});
+			const before = await harness.clientIds(clientName);
+
+			await publish(harness, topic);
+			await waitFor(() => delivered.length === 2, {
+				timeout: STALL_TIMEOUT,
+				message: "the slow handler should receive the second message",
+			});
+
+			expect(new Set(await harness.clientIds(clientName))).toEqual(
+				new Set(before),
+			);
+			expect(
+				probe.consumerStalledCalls.filter((s) => isReadDeadlineError(s.error)),
+			).toEqual([]);
 		},
 		CASE_TIMEOUT,
 	);
