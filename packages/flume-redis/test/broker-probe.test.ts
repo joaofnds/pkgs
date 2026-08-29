@@ -264,6 +264,38 @@ describe("BrokerProbe wiring", () => {
 		expect(probe.consumerStoppedCalls).toEqual([]);
 	});
 
+	it("reports a stop when a consumer's read client closes itself", async () => {
+		await using harness = await start({
+			redis: { url: REDIS_URL, socket: { socketTimeout: 300 } },
+			readTimeout: 1000,
+		});
+		const topic = uniqueTopic();
+
+		await harness.broker.consume(
+			subscription(topic, "h"),
+			new Deliveries().deliver,
+		);
+
+		await waitFor(() => probe.consumerStoppedCalls.length === 1, {
+			message: "a read client that closed itself should surface as a stop",
+		});
+		expect(probe.consumerStoppedCalls[0].stream).toBe(topic);
+		expect(probe.consumerStoppedCalls[0].group).toBe("flume:h");
+	});
+
+	it("reports no stop for a consumer the broker closed", async () => {
+		const harness = await start();
+		await harness.broker.consume(
+			subscription(uniqueTopic(), "h"),
+			new Deliveries().deliver,
+		);
+
+		await harness.stop();
+		await sleep(300);
+
+		expect(probe.consumerStoppedCalls).toEqual([]);
+	});
+
 	it("survives a killed connection and resumes delivering", async () => {
 		await using harness = await start({
 			redis: { url: REDIS_URL, name: "flume-victim" },

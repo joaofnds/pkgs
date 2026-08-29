@@ -337,12 +337,12 @@ export class RedisStreamsBroker implements Broker {
 
 		state.stopped = true;
 		state.throughput.stop();
-		state.readClient.destroy();
+		if (state.readClient.isOpen) state.readClient.destroy();
 	}
 
 	private stopsConsumer(state: ConsumerState, error: unknown): boolean {
-		if (state.stopped || isClientClosedError(error)) return true;
-		if (!isNoGroupError(error)) return false;
+		if (state.stopped) return true;
+		if (!isClientClosedError(error) && !isNoGroupError(error)) return false;
 
 		this.stopConsumer(state);
 		this.probe.consumerStopped({
