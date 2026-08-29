@@ -45,6 +45,7 @@ export class RedisStreamsBroker implements Broker {
 	private readonly throughput: Throughput;
 	private readonly probe: BrokerProbe;
 	private writeClient?: WriteClient;
+	private lifecycle?: ClientLifecycle;
 	private readonly heartbeatSweep: MaintenanceSweep;
 	private readonly reapSweep: MaintenanceSweep;
 	private readonly consumers = new Set<ConsumerState>();
@@ -77,11 +78,14 @@ export class RedisStreamsBroker implements Broker {
 
 		try {
 			this.writeClient = createWriteClient(this.options.redis);
-			new ClientLifecycle(this.probe).watch(this.writeClient);
+			this.lifecycle = new ClientLifecycle(this.probe);
+			this.lifecycle.watch(this.writeClient);
 			await this.writeClient.connect();
 		} catch (error) {
+			this.lifecycle?.stop();
 			await Promise.allSettled([this.writeClient?.close()]);
 			this.writeClient = undefined;
+			this.lifecycle = undefined;
 			throw error;
 		}
 
@@ -91,6 +95,7 @@ export class RedisStreamsBroker implements Broker {
 	}
 
 	async close(): Promise<void> {
+		this.lifecycle?.stop();
 		this.heartbeatSweep.stop();
 		this.reapSweep.stop();
 		this.throughput.stop();
@@ -98,6 +103,7 @@ export class RedisStreamsBroker implements Broker {
 		for (const state of [...this.consumers]) this.stopConsumer(state);
 		await Promise.allSettled([this.writeClient?.close()]);
 		this.writeClient = undefined;
+		this.lifecycle = undefined;
 	}
 
 	async publish(topic: Topic, body: Bytes): Promise<void> {

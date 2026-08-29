@@ -296,6 +296,15 @@ describe("BrokerProbe wiring", () => {
 		expect(probe.consumerStoppedCalls).toEqual([]);
 	});
 
+	it("reports no connection abandoned for a broker the caller closed", async () => {
+		const harness = await start();
+
+		await harness.stop();
+		await sleep(300);
+
+		expect(probe.connectionAbandonedCalls).toEqual([]);
+	});
+
 	it("survives a killed connection and resumes delivering", async () => {
 		await using harness = await start({
 			redis: { url: REDIS_URL, name: "flume-victim" },
