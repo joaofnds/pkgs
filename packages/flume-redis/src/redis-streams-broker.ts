@@ -449,13 +449,15 @@ export class RedisStreamsBroker implements Broker {
 		if (!this.shouldReclaim(state)) return;
 
 		state.lastReclaimAt = now;
-		const claim = await state.readClient.xAutoClaim(
-			state.stream,
-			state.group,
-			this.options.consumerName,
-			this.options.reclaim.minIdleTime,
-			state.reclaimCursor,
-			{ COUNT: this.options.readCount },
+		const claim = await this.withReadDeadline(state, "xAutoClaim", (client) =>
+			client.xAutoClaim(
+				state.stream,
+				state.group,
+				this.options.consumerName,
+				this.options.reclaim.minIdleTime,
+				state.reclaimCursor,
+				{ COUNT: this.options.readCount },
+			),
 		);
 		// idOf() normalizes the Buffer cursor so the "0-0" terminator compares (raw compare would loop forever).
 		const nextCursor = idOf(claim.nextId);
@@ -464,15 +466,20 @@ export class RedisStreamsBroker implements Broker {
 		const pending = claim.messages.filter((raw) => raw !== null);
 		if (pending.length === 0) return;
 
-		const claimed = await Promise.all(
-			pending.map(async (raw) => {
-				const id = idOf(raw.id);
-				return {
-					id,
-					body: bodyOf(raw.message),
-					count: await this.deliveryCount(state, id),
-				};
-			}),
+		const claimed = await this.withReadDeadline(
+			state,
+			"xPendingRange",
+			(client) =>
+				Promise.all(
+					pending.map(async (raw) => {
+						const id = idOf(raw.id);
+						return {
+							id,
+							body: bodyOf(raw.message),
+							count: await this.deliveryCount(client, state, id),
+						};
+					}),
+				),
 		);
 		await Promise.all(
 			claimed.map((msg) => this.deliver(state, msg.id, msg.body, msg.count)),
@@ -648,10 +655,11 @@ export class RedisStreamsBroker implements Broker {
 	}
 
 	private async deliveryCount(
+		client: ReadClient,
 		state: ConsumerState,
 		id: string,
 	): Promise<number> {
-		const pending = await state.readClient.xPendingRange(
+		const pending = await client.xPendingRange(
 			state.stream,
 			state.group,
 			id,

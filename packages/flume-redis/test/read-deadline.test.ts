@@ -97,4 +97,79 @@ describe("read deadline", () => {
 		},
 		CASE_TIMEOUT,
 	);
+
+	it(
+		"reports a stalled reclaim turn, never a reclaim failure",
+		async () => {
+			await using harness = await start();
+			const topic = uniqueTopic();
+			const deliveries = new Deliveries();
+			proxy.stallOn("XAUTOCLAIM");
+			await harness.broker.consume(
+				subscription(topic, "deadline-claim"),
+				deliveries.deliver,
+			);
+
+			await waitFor(
+				() => probe.consumerStalledCalls.some((s) => isReadDeadlineError(s.error)),
+				{
+					timeout: STALL_TIMEOUT,
+					message: "a claim whose reply never comes should stall the consumer",
+				},
+			);
+
+			expect(probe.reclaimFailures).toEqual([]);
+			expect(probe.consumerStoppedCalls).toEqual([]);
+
+			proxy.resume();
+			await publish(harness, topic);
+			await waitFor(() => deliveries.messages.length === 1, {
+				timeout: STALL_TIMEOUT,
+				message: "the consumer should deliver again once the stall clears",
+			});
+		},
+		CASE_TIMEOUT,
+	);
+
+	it(
+		"reports a stalled delivery-count batch, never a reclaim failure",
+		async () => {
+			await using harness = await start();
+			const topic = uniqueTopic();
+			const deliveries = new Deliveries();
+			// nack() is a no-op that issues no command, so the entry stays in the PEL
+			// for the reclaim turn and no ack can deadlock behind the stall.
+			deliveries.mode = "nack";
+			await harness.broker.consume(
+				subscription(topic, "deadline-pending"),
+				deliveries.deliver,
+			);
+			await publish(harness, topic);
+			await waitFor(() => deliveries.messages.length >= 1, {
+				timeout: STALL_TIMEOUT,
+				message: "the first delivery should land before the stall is armed",
+			});
+
+			proxy.stallOn("XPENDING");
+			await waitFor(
+				() => probe.consumerStalledCalls.some((s) => isReadDeadlineError(s.error)),
+				{
+					timeout: STALL_TIMEOUT,
+					message: "a pending batch whose reply never comes should stall",
+				},
+			);
+
+			expect(probe.reclaimFailures).toEqual([]);
+			expect(probe.consumerStoppedCalls).toEqual([]);
+
+			proxy.resume();
+			const before = deliveries.messages.length;
+			await publish(harness, topic);
+			await waitFor(() => deliveries.messages.length > before, {
+				timeout: STALL_TIMEOUT,
+				message: "the consumer should deliver again once the stall clears",
+			});
+		},
+		CASE_TIMEOUT,
+	);
 });
