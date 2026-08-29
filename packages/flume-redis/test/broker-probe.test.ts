@@ -108,6 +108,63 @@ describe("BrokerProbe wiring", () => {
 		expect(probe.reclaimedCounts).toEqual([]);
 	});
 
+	it("reports a failing reclaim turn instead of dropping it into the read catch", async () => {
+		await using harness = await BrokerHarness.start();
+		await harness.maint.sendCommand([
+			"ACL",
+			"SETUSER",
+			"claimless",
+			"on",
+			">pw",
+			"~*",
+			"+@all",
+			"-xautoclaim",
+		]);
+		const claimless = await BrokerHarness.start(
+			{ redis: { url: "redis://claimless:pw@localhost:6381" } },
+			probe,
+		);
+
+		try {
+			const topic = uniqueTopic();
+			const deliveries = new Deliveries();
+			deliveries.mode = "nack";
+			await claimless.broker.consume(
+				subscription(topic, "h"),
+				deliveries.deliver,
+			);
+
+			await claimless.broker.publish(new Topic(topic), encode("stuck"));
+			await waitFor(() => probe.reclaimFailures.length > 0, {
+				message: "a denied XAUTOCLAIM should surface as a reclaim failure",
+			});
+
+			await claimless.broker.publish(new Topic(topic), encode("after"));
+			await waitFor(() => deliveries.messages.length === 2, {
+				message: "the loop should reach its fresh read after a failed claim",
+			});
+			expect(probe.consumerStoppedCalls).toEqual([]);
+		} finally {
+			await claimless.stop();
+			await harness.maint.sendCommand(["ACL", "DELUSER", "claimless"]);
+		}
+	});
+
+	it("reports neither a reclaim failure nor a stop for a consumer that was stopped", async () => {
+		await using harness = await start();
+		const topic = uniqueTopic();
+		const running = await harness.broker.consume(
+			subscription(topic, "h"),
+			new Deliveries().deliver,
+		);
+
+		await running.stop();
+		await sleep(300);
+
+		expect(probe.reclaimFailures).toEqual([]);
+		expect(probe.consumerStoppedCalls).toEqual([]);
+	});
+
 	it("reports the groups destroyed by the reaper", async () => {
 		await using harness = await start({
 			broadcast: { heartbeatInterval: 25, heartbeatTtl: 100 },

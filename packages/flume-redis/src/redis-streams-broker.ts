@@ -276,7 +276,12 @@ export class RedisStreamsBroker implements Broker {
 		while (!state.stopped) {
 			try {
 				await this.reclaimTurn(state);
+			} catch (error) {
+				if (this.stopsConsumer(state, error)) return;
+				this.probe.reclaimFailed(error);
+			}
 
+			try {
 				const response = await state.readClient.xReadGroup(
 					state.group,
 					this.options.consumerName,
@@ -295,18 +300,22 @@ export class RedisStreamsBroker implements Broker {
 					);
 				}
 			} catch (error) {
-				if (state.stopped || isClientClosedError(error)) return;
-				if (isNoGroupError(error)) {
-					state.stopped = true;
-					this.probe.consumerStopped({
-						stream: state.stream,
-						group: state.group,
-						error,
-					});
-					return;
-				}
+				if (this.stopsConsumer(state, error)) return;
 			}
 		}
+	}
+
+	private stopsConsumer(state: ConsumerState, error: unknown): boolean {
+		if (state.stopped || isClientClosedError(error)) return true;
+		if (!isNoGroupError(error)) return false;
+
+		state.stopped = true;
+		this.probe.consumerStopped({
+			stream: state.stream,
+			group: state.group,
+			error,
+		});
+		return true;
 	}
 
 	private async reclaimTurn(state: ConsumerState): Promise<void> {
