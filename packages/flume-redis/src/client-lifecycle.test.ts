@@ -89,4 +89,15 @@ describe(ClientLifecycle, () => {
 
 		expect(probe.disconnectedCount).toBe(1);
 	});
+
+	it("reports one disconnect however many times the client retries", () => {
+		client.emit("ready");
+		client.emit("reconnecting");
+		client.emit("reconnecting");
+		client.emit("reconnecting");
+		client.emit("ready");
+
+		expect(probe.disconnectedCount).toBe(1);
+		expect(probe.reconnectedCount).toBe(1);
+	});
 });
