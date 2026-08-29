@@ -78,6 +78,7 @@ describe("saturation gauges", () => {
 			streamDepth: 4,
 			pendingCount: 0,
 			consumerLag: 0,
+			throughputPerSecond: expect.any(Number),
 		});
 	});
 
@@ -158,5 +159,42 @@ describe("saturation gauges", () => {
 				(await harness.broker.sampleSaturation()).throughputPerSecond > 0,
 			{ message: "throughput should reflect the delivered messages" },
 		);
+	});
+
+	it("reports a different throughput for a hot and an idle consumer", async () => {
+		await using harness = await start();
+		const hotTopic = uniqueTopic();
+		const idleTopic = uniqueTopic();
+		const drained = new Deliveries();
+		await harness.broker.consume(
+			subscription(hotTopic, "hot"),
+			drained.deliver,
+		);
+		await harness.broker.consume(
+			subscription(idleTopic, "idle"),
+			new Deliveries().deliver,
+		);
+		for (let i = 0; i < 100; i++) {
+			await harness.broker.publish(new Topic(hotTopic), encode(`m${i}`));
+		}
+		await waitFor(() => drained.messages.length === 100);
+		await waitFor(
+			async () =>
+				(snapshotFor(
+					await harness.broker.sampleSaturation(),
+					hotTopic,
+					"flume:hot",
+				)?.throughputPerSecond ?? 0) > 0,
+			{ message: "the draining consumer's throughput should rise above zero" },
+		);
+
+		const saturation = await harness.broker.sampleSaturation();
+
+		expect(
+			snapshotFor(saturation, hotTopic, "flume:hot")?.throughputPerSecond,
+		).toBeGreaterThan(0);
+		expect(
+			snapshotFor(saturation, idleTopic, "flume:idle")?.throughputPerSecond,
+		).toBe(0);
 	});
 });

@@ -4,4 +4,5 @@ export interface ConsumerSaturation {
 	readonly streamDepth: number;
 	readonly pendingCount: number;
 	readonly consumerLag: number;
+	readonly throughputPerSecond: number;
 }

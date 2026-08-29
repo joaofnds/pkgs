@@ -214,6 +214,7 @@ export class RedisStreamsBroker implements Broker {
 						streamDepth,
 						pendingCount: info ? Number(info.pending) : 0,
 						consumerLag: info ? Number(info.lag ?? 0) : 0,
+						throughputPerSecond: state.throughput.perSecond(),
 					});
 				}
 			}
