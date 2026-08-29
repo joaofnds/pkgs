@@ -10,5 +10,6 @@ export class NoopBrokerProbe implements BrokerProbe {
 	reapFailed(): void {}
 	heartbeatFailed(): void {}
 	redrove(): void {}
+	consumerStalled(): void {}
 	consumerStopped(): void {}
 }

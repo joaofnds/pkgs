@@ -5,6 +5,7 @@ export * from "./broker-not-connected-error";
 export * from "./broker-probe";
 export * from "./broker-saturation";
 export * from "./consumer-saturation";
+export * from "./consumer-stall";
 export * from "./consumer-stop";
 export * from "./delivered-message";
 export * from "./errors";

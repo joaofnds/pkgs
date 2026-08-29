@@ -1,4 +1,5 @@
 import { BrokerProbe } from "../broker-probe";
+import { ConsumerStall } from "../consumer-stall";
 import { ConsumerStop } from "../consumer-stop";
 import { ReapResult } from "../reap-result";
 import { RedriveResult } from "../redrive-result";
@@ -13,6 +14,7 @@ export class RecordingBrokerProbe implements BrokerProbe {
 	readonly reapFailures: unknown[] = [];
 	readonly heartbeatFailures: unknown[] = [];
 	readonly redroveResults: RedriveResult[] = [];
+	readonly consumerStalledCalls: ConsumerStall[] = [];
 	readonly consumerStoppedCalls: ConsumerStop[] = [];
 
 	connected(): void {
@@ -49,6 +51,10 @@ export class RecordingBrokerProbe implements BrokerProbe {
 
 	redrove(result: RedriveResult): void {
 		this.redroveResults.push(result);
+	}
+
+	consumerStalled(stall: ConsumerStall): void {
+		this.consumerStalledCalls.push(stall);
 	}
 
 	consumerStopped(stop: ConsumerStop): void {

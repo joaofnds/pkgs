@@ -1,4 +1,5 @@
 import { BrokerProbe } from "./broker-probe";
+import { ConsumerStall } from "./consumer-stall";
 import { ConsumerStop } from "./consumer-stop";
 import { ReapResult } from "./reap-result";
 import { RedriveResult } from "./redrive-result";
@@ -40,6 +41,10 @@ export class GuardedBrokerProbe implements BrokerProbe {
 
 	redrove(result: RedriveResult): void {
 		this.guard(() => this.delegate.redrove(result));
+	}
+
+	consumerStalled(stall: ConsumerStall): void {
+		this.guard(() => this.delegate.consumerStalled(stall));
 	}
 
 	consumerStopped(stop: ConsumerStop): void {

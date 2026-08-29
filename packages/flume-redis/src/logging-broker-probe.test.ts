@@ -129,6 +129,28 @@ describe(LoggingBrokerProbe, () => {
 		]);
 	});
 
+	it("logs a consumer stall at error with the stream, group, count and reason", () => {
+		probe.consumerStalled({
+			stream: "orders",
+			group: "orders__workers",
+			consecutive: 2,
+			error: new Error("NOPERM"),
+		});
+
+		expect(logger.lines).toEqual([
+			{
+				level: "error",
+				event: "flume.broker.consumer_stalled",
+				fields: {
+					stream: "orders",
+					group: "orders__workers",
+					consecutive: 2,
+					error: "NOPERM",
+				},
+			},
+		]);
+	});
+
 	it("logs a redrive at info with the result", () => {
 		probe.redrove({ redriven: 4, skipped: 1 });
 

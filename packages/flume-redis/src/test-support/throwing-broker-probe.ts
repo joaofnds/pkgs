@@ -28,6 +28,9 @@ export class ThrowingBrokerProbe implements BrokerProbe {
 	redrove(): void {
 		throw new Error("broker probe boom");
 	}
+	consumerStalled(): void {
+		throw new Error("broker probe boom");
+	}
 	consumerStopped(): void {
 		throw new Error("broker probe boom");
 	}

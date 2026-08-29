@@ -1,5 +1,6 @@
 import { ConsoleProbeLogger, ProbeLogger } from "@joaofnds/flume";
 import { BrokerProbe } from "./broker-probe";
+import { ConsumerStall } from "./consumer-stall";
 import { ConsumerStop } from "./consumer-stop";
 import { ReapResult } from "./reap-result";
 import { RedriveResult } from "./redrive-result";
@@ -54,6 +55,15 @@ export class LoggingBrokerProbe implements BrokerProbe {
 		this.logger.info("flume.broker.redrove", {
 			redriven: result.redriven,
 			skipped: result.skipped,
+		});
+	}
+
+	consumerStalled(stall: ConsumerStall): void {
+		this.logger.error("flume.broker.consumer_stalled", {
+			stream: stall.stream,
+			group: stall.group,
+			consecutive: stall.consecutive,
+			error: this.reason(stall.error),
 		});
 	}
 

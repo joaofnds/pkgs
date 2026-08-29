@@ -1,3 +1,4 @@
+import { ConsumerStall } from "./consumer-stall";
 import { ConsumerStop } from "./consumer-stop";
 import { ReapResult } from "./reap-result";
 import { RedriveResult } from "./redrive-result";
@@ -12,5 +13,6 @@ export interface BrokerProbe {
 	reapFailed(error: unknown): void;
 	heartbeatFailed(error: unknown): void;
 	redrove(result: RedriveResult): void;
+	consumerStalled(stall: ConsumerStall): void;
 	consumerStopped(stop: ConsumerStop): void;
 }
