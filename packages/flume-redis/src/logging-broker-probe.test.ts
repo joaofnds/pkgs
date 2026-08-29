@@ -57,6 +57,18 @@ describe(LoggingBrokerProbe, () => {
 		]);
 	});
 
+	it("logs a connection abandoned at error with the reason", () => {
+		probe.connectionAbandoned(new Error("gave up reconnecting"));
+
+		expect(logger.lines).toEqual([
+			{
+				level: "error",
+				event: "flume.broker.connection_abandoned",
+				fields: { error: "gave up reconnecting" },
+			},
+		]);
+	});
+
 	it("logs reclaimed messages at info with the count", () => {
 		probe.reclaimed(7);
 

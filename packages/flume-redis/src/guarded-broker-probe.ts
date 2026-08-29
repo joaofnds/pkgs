@@ -19,6 +19,10 @@ export class GuardedBrokerProbe implements BrokerProbe {
 		this.guard(() => this.delegate.reconnected());
 	}
 
+	connectionAbandoned(error: unknown): void {
+		this.guard(() => this.delegate.connectionAbandoned(error));
+	}
+
 	reclaimed(count: number): void {
 		this.guard(() => this.delegate.reclaimed(count));
 	}

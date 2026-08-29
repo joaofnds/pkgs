@@ -10,6 +10,9 @@ export class ThrowingBrokerProbe implements BrokerProbe {
 	reconnected(): void {
 		throw new Error("broker probe boom");
 	}
+	connectionAbandoned(): void {
+		throw new Error("broker probe boom");
+	}
 	reclaimed(): void {
 		throw new Error("broker probe boom");
 	}

@@ -4,6 +4,7 @@ export class NoopBrokerProbe implements BrokerProbe {
 	connected(): void {}
 	disconnected(): void {}
 	reconnected(): void {}
+	connectionAbandoned(): void {}
 	reclaimed(): void {}
 	reclaimFailed(): void {}
 	reaped(): void {}

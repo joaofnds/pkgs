@@ -16,6 +16,7 @@ describe(GuardedBrokerProbe, () => {
 		probe.connected();
 		probe.disconnected();
 		probe.reconnected();
+		probe.connectionAbandoned(new Error("gave up"));
 		probe.reclaimed(3);
 		probe.reclaimFailed(new Error("reclaim boom"));
 		probe.reaped({ groupsDestroyed: 2, streamsTrimmed: 1 });
@@ -37,6 +38,7 @@ describe(GuardedBrokerProbe, () => {
 		expect(delegate.connectedCount).toBe(1);
 		expect(delegate.disconnectedCount).toBe(1);
 		expect(delegate.reconnectedCount).toBe(1);
+		expect(delegate.connectionAbandonedCalls).toHaveLength(1);
 		expect(delegate.reclaimedCounts).toEqual([3]);
 		expect(delegate.reclaimFailures).toHaveLength(1);
 		expect(delegate.reapedCalls).toEqual([
@@ -64,6 +66,7 @@ describe(GuardedBrokerProbe, () => {
 		expect(() => throwing.connected()).not.toThrow();
 		expect(() => throwing.disconnected()).not.toThrow();
 		expect(() => throwing.reconnected()).not.toThrow();
+		expect(() => throwing.connectionAbandoned(new Error("x"))).not.toThrow();
 		expect(() => throwing.reclaimed(1)).not.toThrow();
 		expect(() => throwing.reclaimFailed(new Error("x"))).not.toThrow();
 		expect(() =>

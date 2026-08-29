@@ -22,6 +22,12 @@ export class LoggingBrokerProbe implements BrokerProbe {
 		this.logger.info("flume.broker.reconnected", {});
 	}
 
+	connectionAbandoned(error: unknown): void {
+		this.logger.error("flume.broker.connection_abandoned", {
+			error: this.reason(error),
+		});
+	}
+
 	reclaimed(count: number): void {
 		this.logger.info("flume.broker.reclaimed", { count });
 	}

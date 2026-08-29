@@ -8,6 +8,7 @@ export class RecordingBrokerProbe implements BrokerProbe {
 	connectedCount = 0;
 	disconnectedCount = 0;
 	reconnectedCount = 0;
+	readonly connectionAbandonedCalls: unknown[] = [];
 	readonly reclaimedCounts: number[] = [];
 	readonly reclaimFailures: unknown[] = [];
 	readonly reapedCalls: ReapResult[] = [];
@@ -27,6 +28,10 @@ export class RecordingBrokerProbe implements BrokerProbe {
 
 	reconnected(): void {
 		this.reconnectedCount += 1;
+	}
+
+	connectionAbandoned(error: unknown): void {
+		this.connectionAbandonedCalls.push(error);
 	}
 
 	reclaimed(count: number): void {

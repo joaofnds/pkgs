@@ -7,6 +7,7 @@ export interface BrokerProbe {
 	connected(): void;
 	disconnected(): void;
 	reconnected(): void;
+	connectionAbandoned(error: unknown): void;
 	reclaimed(count: number): void;
 	reclaimFailed(error: unknown): void;
 	reaped(result: ReapResult): void;
