@@ -9,6 +9,7 @@ import {
 	Topic,
 } from "@joaofnds/flume";
 import { uniqueTopic, waitFor } from "@joaofnds/flume-tck";
+import { Throughput } from "@joaofnds/throughput";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BrokerAlreadyConnectedError, RedisStreamsBroker } from "../src/index";
 import { BrokerHarness } from "./support/harness";
@@ -153,6 +154,35 @@ describe("RedisStreamsBroker (Redis-specific mechanics)", () => {
 
 		await sleep(300);
 		expect(deliveries.messages).toHaveLength(1);
+	});
+
+	it("resumes reclaiming once throughput falls back under the threshold", async () => {
+		await using gated = await BrokerHarness.start(
+			{
+				reclaim: {
+					interval: 50,
+					minIdleTime: 50,
+					throughputThreshold: 1,
+				},
+			},
+			undefined,
+			new Throughput(2, 50),
+		);
+
+		const topic = uniqueTopic();
+		const deliveries = new Deliveries();
+		deliveries.mode = "nack";
+		await gated.broker.consume(subscription(topic, "h"), deliveries.deliver);
+
+		const burst = 5;
+		for (let i = 0; i < burst; i++) {
+			await gated.broker.publish(new Topic(topic), encode(`m${i}`));
+		}
+		await waitFor(() => deliveries.messages.length === burst);
+
+		await waitFor(() => deliveries.messages.some((m) => m.deliveryCount >= 2), {
+			message: "reclaim should resume once the throughput window rolls over",
+		});
 	});
 
 	describe("connect", () => {
