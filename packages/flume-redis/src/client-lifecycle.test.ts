@@ -68,6 +68,13 @@ describe(ClientLifecycle, () => {
 		expect(probe.connectionAbandonedCalls).toEqual([cause]);
 	});
 
+	it("reports nothing for an error the client will retry", () => {
+		client.emit("ready");
+		client.failTransiently(new Error("socket closed unexpectedly"));
+
+		expect(probe.connectionAbandonedCalls).toEqual([]);
+	});
+
 	it("reports disconnected on reconnecting", () => {
 		client.emit("ready");
 		client.emit("reconnecting");
