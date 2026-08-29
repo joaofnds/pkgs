@@ -11,11 +11,14 @@ type ConnectionState = "idle" | "up" | "down";
 export class ClientLifecycle {
 	private state: ConnectionState = "idle";
 	private abandoned = false;
+	private stopped = false;
 
 	constructor(private readonly probe: BrokerProbe) {}
 
 	watch(client: LifecycleEmitter): void {
 		client.on("ready", () => {
+			if (this.stopped) return;
+
 			if (this.state === "idle") {
 				this.state = "up";
 				this.probe.connected();
@@ -26,12 +29,14 @@ export class ClientLifecycle {
 			this.probe.reconnected();
 		});
 		client.on("reconnecting", () => {
+			if (this.stopped) return;
 			if (this.state !== "up") return;
 
 			this.state = "down";
 			this.probe.disconnected();
 		});
 		client.on("error", (error) => {
+			if (this.stopped) return;
 			if (client.isOpen) return;
 			if (this.state === "idle") return;
 			if (this.abandoned) return;
@@ -39,5 +44,9 @@ export class ClientLifecycle {
 			this.abandoned = true;
 			this.probe.connectionAbandoned(error);
 		});
+	}
+
+	stop(): void {
+		this.stopped = true;
 	}
 }

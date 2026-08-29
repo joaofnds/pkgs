@@ -36,11 +36,13 @@ class FakeClient implements LifecycleEmitter {
 describe(ClientLifecycle, () => {
 	let probe: RecordingBrokerProbe;
 	let client: FakeClient;
+	let lifecycle: ClientLifecycle;
 
 	beforeEach(() => {
 		probe = new RecordingBrokerProbe();
 		client = new FakeClient();
-		new ClientLifecycle(probe).watch(client);
+		lifecycle = new ClientLifecycle(probe);
+		lifecycle.watch(client);
 	});
 
 	it("reports connected on the first ready", () => {
@@ -111,5 +113,16 @@ describe(ClientLifecycle, () => {
 
 		expect(probe.disconnectedCount).toBe(1);
 		expect(probe.reconnectedCount).toBe(1);
+	});
+
+	it("reports nothing after it stops watching", () => {
+		client.emit("ready");
+		lifecycle.stop();
+
+		client.emit("reconnecting");
+		client.giveUp(new Error("gave up after the watcher stopped"));
+
+		expect(probe.disconnectedCount).toBe(0);
+		expect(probe.connectionAbandonedCalls).toEqual([]);
 	});
 });
