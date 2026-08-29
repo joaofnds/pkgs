@@ -26,7 +26,7 @@ export class ClientLifecycle {
 			this.probe.reconnected();
 		});
 		client.on("reconnecting", () => {
-			if (this.state === "down") return;
+			if (this.state !== "up") return;
 
 			this.state = "down";
 			this.probe.disconnected();

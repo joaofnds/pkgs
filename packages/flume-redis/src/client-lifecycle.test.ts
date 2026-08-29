@@ -68,6 +68,12 @@ describe(ClientLifecycle, () => {
 		expect(probe.connectionAbandonedCalls).toEqual([cause]);
 	});
 
+	it("reports nothing for a reconnect before the first ready", () => {
+		client.emit("reconnecting");
+
+		expect(probe.disconnectedCount).toBe(0);
+	});
+
 	it("reports nothing for a give-up before the first ready", () => {
 		client.giveUp(new Error("gave up on the initial connect"));
 
