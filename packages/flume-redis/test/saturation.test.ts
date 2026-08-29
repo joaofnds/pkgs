@@ -52,7 +52,7 @@ function snapshotFor(
 }
 
 describe("saturation gauges", () => {
-	async function start(throughput?: Throughput): Promise<BrokerHarness> {
+	async function start(throughput?: () => Throughput): Promise<BrokerHarness> {
 		return BrokerHarness.start({}, undefined, throughput);
 	}
 
@@ -143,7 +143,7 @@ describe("saturation gauges", () => {
 	});
 
 	it("reports local throughput per second after deliveries", async () => {
-		await using harness = await start(new Throughput(20, 25));
+		await using harness = await start(() => new Throughput(20, 25));
 		const topic = uniqueTopic();
 		const deliveries = new Deliveries();
 		await harness.broker.consume(subscription(topic, "h"), deliveries.deliver);

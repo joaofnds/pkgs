@@ -30,7 +30,7 @@ export class BrokerHarness {
 	static async start(
 		overrides: Partial<RedisStreamsBrokerOptions> = {},
 		probe?: BrokerProbe,
-		throughput?: Throughput,
+		throughput?: () => Throughput,
 	): Promise<BrokerHarness> {
 		const maint = maintClient();
 		await maint.connect();

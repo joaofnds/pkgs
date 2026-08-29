@@ -9,9 +9,10 @@ import {
 	Topic,
 } from "@joaofnds/flume";
 import { uniqueTopic, waitFor } from "@joaofnds/flume-tck";
-import { Throughput } from "@joaofnds/throughput";
+import { Throughput, Ticker } from "@joaofnds/throughput";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BrokerAlreadyConnectedError, RedisStreamsBroker } from "../src/index";
+import { RecordingBrokerProbe } from "../src/test-support/recording-broker-probe";
 import { BrokerHarness } from "./support/harness";
 
 // Adapter-specific behaviors that assert Redis Streams internals — the PEL, the
@@ -48,6 +49,26 @@ class Deliveries {
 }
 
 const encode = (text: string): Uint8Array => new TextEncoder().encode(text);
+
+class FakeTicker implements Ticker {
+	stopped = false;
+
+	start(): void {}
+
+	stop(): void {
+		this.stopped = true;
+	}
+}
+
+class FakeTickers {
+	readonly built: FakeTicker[] = [];
+
+	next = (): FakeTicker => {
+		const ticker = new FakeTicker();
+		this.built.push(ticker);
+		return ticker;
+	};
+}
 
 describe("RedisStreamsBroker (Redis-specific mechanics)", () => {
 	let harness: BrokerHarness;
@@ -166,7 +187,7 @@ describe("RedisStreamsBroker (Redis-specific mechanics)", () => {
 				},
 			},
 			undefined,
-			new Throughput(2, 50),
+			() => new Throughput(2, 50),
 		);
 
 		const topic = uniqueTopic();
@@ -183,6 +204,99 @@ describe("RedisStreamsBroker (Redis-specific mechanics)", () => {
 		await waitFor(() => deliveries.messages.some((m) => m.deliveryCount >= 2), {
 			message: "reclaim should resume once the throughput window rolls over",
 		});
+	});
+
+	it("reclaims for an idle consumer while a peer consumer is hot", async () => {
+		await using peers = await BrokerHarness.start({
+			reclaim: { interval: 50, minIdleTime: 100, throughputThreshold: 1 },
+		});
+
+		const hotTopic = uniqueTopic();
+		const idleTopic = uniqueTopic();
+		const hot = new Deliveries();
+		const idle = new Deliveries();
+		idle.mode = "nack";
+		await peers.broker.consume(subscription(hotTopic, "hot"), hot.deliver);
+		await peers.broker.consume(subscription(idleTopic, "idle"), idle.deliver);
+
+		const burst = 100;
+		for (let i = 0; i < burst; i++) {
+			await peers.broker.publish(new Topic(hotTopic), encode(`m${i}`));
+		}
+		await waitFor(() => hot.messages.length === burst);
+		await waitFor(
+			async () =>
+				(await peers.broker.sampleSaturation()).throughputPerSecond > 1,
+			{ message: "the hot consumer should push the gauge past the threshold" },
+		);
+		await peers.broker.publish(new Topic(idleTopic), encode("stuck"));
+		await waitFor(() => idle.messages.length === 1);
+
+		await waitFor(() => idle.messages.some((m) => m.deliveryCount >= 2), {
+			timeout: 8000,
+			message: "an idle consumer should redeliver while a peer is hot",
+		});
+	});
+
+	it("builds one throughput for the broker gauge and one for each consumer", async () => {
+		const tickers = new FakeTickers();
+		await using own = await BrokerHarness.start(
+			{},
+			undefined,
+			() => new Throughput(60, 1000, tickers.next()),
+		);
+
+		await own.broker.consume(
+			subscription(uniqueTopic(), "h"),
+			new Deliveries().deliver,
+		);
+
+		expect(tickers.built).toHaveLength(2);
+	});
+
+	it("stops only the NOGROUP-stopped consumer's own throughput timer", async () => {
+		const probe = new RecordingBrokerProbe();
+		const tickers = new FakeTickers();
+		await using own = await BrokerHarness.start(
+			{},
+			probe,
+			() => new Throughput(60, 1000, tickers.next()),
+		);
+		const topic = uniqueTopic();
+		await own.broker.consume(
+			subscription(topic, "h"),
+			new Deliveries().deliver,
+		);
+
+		await own.destroyConsumerGroup(topic, "flume:h");
+		await waitFor(() => probe.consumerStoppedCalls.length >= 1, {
+			message: "destroying a live consumer's group should stop the consumer",
+		});
+
+		expect(tickers.built[1].stopped).toBe(true);
+		expect(tickers.built[0].stopped).toBe(false);
+	});
+
+	it("leaves both throughput timers alone when a stopped consumer is stopped again", async () => {
+		const probe = new RecordingBrokerProbe();
+		const tickers = new FakeTickers();
+		await using own = await BrokerHarness.start(
+			{},
+			probe,
+			() => new Throughput(60, 1000, tickers.next()),
+		);
+		const topic = uniqueTopic();
+		const running = await own.broker.consume(
+			subscription(topic, "h"),
+			new Deliveries().deliver,
+		);
+		await own.destroyConsumerGroup(topic, "flume:h");
+		await waitFor(() => probe.consumerStoppedCalls.length >= 1);
+
+		await running.stop();
+
+		expect(tickers.built[1].stopped).toBe(true);
+		expect(tickers.built[0].stopped).toBe(false);
 	});
 
 	describe("connect", () => {

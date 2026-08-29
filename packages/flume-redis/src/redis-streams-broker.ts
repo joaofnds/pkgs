@@ -38,6 +38,7 @@ const REGISTRY_SCAN_COUNT = 100;
 
 export class RedisStreamsBroker implements Broker {
 	private readonly options: ResolvedOptions;
+	private readonly createThroughput: () => Throughput;
 	private readonly throughput: Throughput;
 	private readonly probe: BrokerProbe;
 	private writeClient?: WriteClient;
@@ -49,10 +50,11 @@ export class RedisStreamsBroker implements Broker {
 	constructor(
 		options: RedisStreamsBrokerOptions,
 		probe: BrokerProbe = new NoopBrokerProbe(),
-		throughput: Throughput = new Throughput(60, 1000),
+		throughput: () => Throughput = () => new Throughput(60, 1000),
 	) {
 		this.options = resolveOptions(options);
-		this.throughput = throughput;
+		this.createThroughput = throughput;
+		this.throughput = throughput();
 		this.probe = new GuardedBrokerProbe(probe);
 
 		this.heartbeatSweep = new MaintenanceSweep(
@@ -90,11 +92,7 @@ export class RedisStreamsBroker implements Broker {
 		this.reapSweep.stop();
 		this.throughput.stop();
 		await this.cleanupBroadcastGroups();
-		for (const state of this.consumers) {
-			state.stopped = true;
-			state.readClient.destroy();
-		}
-		this.consumers.clear();
+		for (const state of [...this.consumers]) this.stopConsumer(state);
 		await Promise.allSettled([this.writeClient?.close()]);
 		this.writeClient = undefined;
 	}
@@ -126,6 +124,9 @@ export class RedisStreamsBroker implements Broker {
 		const readClient = createReadClient(this.options.redis);
 		await readClient.connect();
 
+		const throughput = this.createThroughput();
+		throughput.start();
+
 		const state: ConsumerState = {
 			topic: sub.topic,
 			stream,
@@ -133,6 +134,7 @@ export class RedisStreamsBroker implements Broker {
 			broadcast,
 			deliver,
 			readClient,
+			throughput,
 			stopped: false,
 			reclaimCursor: "0",
 			lastReclaimAt: 0,
@@ -143,10 +145,8 @@ export class RedisStreamsBroker implements Broker {
 
 		return {
 			stop: async () => {
-				state.stopped = true;
-				this.consumers.delete(state);
+				this.stopConsumer(state);
 				if (broadcast) await this.destroyBroadcastGroup(stream, group);
-				state.readClient.destroy();
 			},
 		};
 	}
@@ -286,17 +286,26 @@ export class RedisStreamsBroker implements Broker {
 			await Promise.all(
 				stream.messages.map((raw) => {
 					this.throughput.hit();
+					state.throughput.hit();
 					return this.deliver(state, idOf(raw.id), bodyOf(raw.message), 1);
 				}),
 			);
 		}
 	}
 
+	private stopConsumer(state: ConsumerState): void {
+		if (!this.consumers.delete(state)) return;
+
+		state.stopped = true;
+		state.throughput.stop();
+		state.readClient.destroy();
+	}
+
 	private stopsConsumer(state: ConsumerState, error: unknown): boolean {
 		if (state.stopped || isClientClosedError(error)) return true;
 		if (!isNoGroupError(error)) return false;
 
-		state.stopped = true;
+		this.stopConsumer(state);
 		this.probe.consumerStopped({
 			stream: state.stream,
 			group: state.group,
@@ -308,7 +317,7 @@ export class RedisStreamsBroker implements Broker {
 	private async reclaimTurn(state: ConsumerState): Promise<void> {
 		const now = Date.now();
 		if (now - state.lastReclaimAt < this.options.reclaim.interval) return;
-		if (!this.shouldReclaim()) return;
+		if (!this.shouldReclaim(state)) return;
 
 		state.lastReclaimAt = now;
 		const claim = await state.readClient.xAutoClaim(
@@ -343,9 +352,9 @@ export class RedisStreamsBroker implements Broker {
 		this.probe.reclaimed(claimed.length);
 	}
 
-	private shouldReclaim(): boolean {
+	private shouldReclaim(state: ConsumerState): boolean {
 		return (
-			this.throughput.perSecond() < this.options.reclaim.throughputThreshold
+			state.throughput.perSecond() < this.options.reclaim.throughputThreshold
 		);
 	}
 
