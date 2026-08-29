@@ -76,6 +76,19 @@ describe("RedisStreamsBroker (Redis-specific mechanics)", () => {
 		);
 	});
 
+	it("redelivers a nacked message from the consumer's read loop", async () => {
+		const topic = uniqueTopic();
+		const deliveries = new Deliveries();
+		deliveries.mode = "nack";
+		await broker.consume(subscription(topic, "h"), deliveries.deliver);
+
+		await broker.publish(new Topic(topic), encode("stuck"));
+
+		await waitFor(() => deliveries.messages.some((m) => m.deliveryCount >= 2), {
+			message: "a nacked message should come back through the read loop",
+		});
+	});
+
 	it("reclaims the entire backlog when it exceeds the reclaim count", async () => {
 		await using small = await BrokerHarness.start({
 			reclaim: {

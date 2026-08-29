@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from "node:timers/promises";
 import {
 	DeliveredMessage,
 	DeliveryMode,
@@ -92,6 +93,19 @@ describe("BrokerProbe wiring", () => {
 			{ message: "the probe should observe the reclaimed backlog" },
 		);
 		expect(probe.reclaimedCounts.every((n) => n > 0)).toBe(true);
+	});
+
+	it("reports no reclaim for a consumer with nothing pending", async () => {
+		await using harness = await start();
+		const topic = uniqueTopic();
+		const deliveries = new Deliveries();
+		await harness.broker.consume(subscription(topic, "h"), deliveries.deliver);
+
+		await harness.broker.publish(new Topic(topic), encode("acked"));
+		await waitFor(() => deliveries.messages.length === 1);
+		await sleep(300);
+
+		expect(probe.reclaimedCounts).toEqual([]);
 	});
 
 	it("reports the groups destroyed by the reaper", async () => {

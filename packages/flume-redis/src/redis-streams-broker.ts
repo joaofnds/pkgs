@@ -48,7 +48,6 @@ export class RedisStreamsBroker implements Broker {
 	private readonly probe: BrokerProbe;
 	private writeClient?: WriteClient;
 	private reclaimClient?: ReadClient;
-	private readonly reclaimSweep: MaintenanceSweep;
 	private readonly heartbeatSweep: MaintenanceSweep;
 	private readonly reapSweep: MaintenanceSweep;
 	private readonly consumers = new Set<ConsumerState>();
@@ -63,11 +62,6 @@ export class RedisStreamsBroker implements Broker {
 		this.throughput = throughput;
 		this.probe = new GuardedBrokerProbe(probe);
 
-		this.reclaimSweep = new MaintenanceSweep(
-			() => this.reclaim(),
-			(error) => this.probe.reclaimFailed(error),
-			this.options.reclaim.interval,
-		);
 		this.heartbeatSweep = new MaintenanceSweep(
 			() => this.heartbeat(),
 			(error) => this.probe.heartbeatFailed(error),
@@ -102,13 +96,11 @@ export class RedisStreamsBroker implements Broker {
 		}
 
 		this.throughput.start();
-		this.reclaimSweep.start();
 		this.heartbeatSweep.start();
 		this.reapSweep.start();
 	}
 
 	async close(): Promise<void> {
-		this.reclaimSweep.stop();
 		this.heartbeatSweep.stop();
 		this.reapSweep.stop();
 		this.throughput.stop();
@@ -248,7 +240,6 @@ export class RedisStreamsBroker implements Broker {
 		return {
 			throughputPerSecond: this.throughput.perSecond(),
 			consumers,
-			reclaimSweepsSkipped: this.reclaimSweep.skipped,
 			reapSweepsSkipped: this.reapSweep.skipped,
 			heartbeatSweepsSkipped: this.heartbeatSweep.skipped,
 		};
@@ -282,6 +273,8 @@ export class RedisStreamsBroker implements Broker {
 	private async readLoop(state: ConsumerState): Promise<void> {
 		while (!state.stopped) {
 			try {
+				await this.reclaimTurn(state);
+
 				const response = await state.readClient.xReadGroup(
 					state.group,
 					this.options.consumerName,
@@ -314,45 +307,35 @@ export class RedisStreamsBroker implements Broker {
 		}
 	}
 
-	private async reclaim(): Promise<void> {
-		const reclaimClient = this.reclaimClient;
-		if (reclaimClient === undefined || !this.shouldReclaim()) return;
+	private async reclaimTurn(state: ConsumerState): Promise<void> {
+		if (!this.shouldReclaim()) return;
 
-		let reclaimed = 0;
-		for (const state of this.consumers) {
-			if (state.stopped) continue;
-			reclaimed += await this.reclaimStream(reclaimClient, state);
-		}
-		if (reclaimed > 0) this.probe.reclaimed(reclaimed);
-	}
+		const claim = await state.readClient.xAutoClaim(
+			state.stream,
+			state.group,
+			this.options.consumerName,
+			this.options.reclaim.minIdleTime,
+			"0",
+			{ COUNT: this.options.readCount },
+		);
+		const pending = claim.messages.filter((raw) => raw !== null);
+		if (pending.length === 0) return;
 
-	private async reclaimStream(
-		reclaimClient: ReadClient,
-		state: ConsumerState,
-	): Promise<number> {
-		let cursor = "0";
-		let claimed = 0;
-		do {
-			const claim = await reclaimClient.xAutoClaim(
-				state.stream,
-				state.group,
-				this.options.consumerName,
-				this.options.reclaim.minIdleTime,
-				cursor,
-				{ COUNT: this.options.reclaim.count },
-			);
-			for (const raw of claim.messages) {
-				if (state.stopped) return claimed;
-				if (raw === null) continue;
+		const claimed = await Promise.all(
+			pending.map(async (raw) => {
 				const id = idOf(raw.id);
-				const count = await this.deliveryCount(state, id);
-				await this.deliver(state, id, bodyOf(raw.message), count);
-				claimed += 1;
-			}
-			// idOf() normalizes the Buffer cursor so the "0-0" terminator compares (raw compare would loop forever).
-			cursor = idOf(claim.nextId);
-		} while (cursor !== "0-0");
-		return claimed;
+				return {
+					id,
+					body: bodyOf(raw.message),
+					count: await this.deliveryCount(state, id),
+				};
+			}),
+		);
+		await Promise.all(
+			claimed.map((msg) => this.deliver(state, msg.id, msg.body, msg.count)),
+		);
+
+		this.probe.reclaimed(claimed.length);
 	}
 
 	private shouldReclaim(): boolean {
