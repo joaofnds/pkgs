@@ -23,8 +23,8 @@ import {
 	ReadClient,
 	WriteClient,
 } from "./clients";
+import { ConsumerLoop } from "./consumer-loop";
 import { ConsumerSaturation } from "./consumer-saturation";
-import { ConsumerState } from "./consumer-state";
 import { RedisDeliveredMessage } from "./delivered-message";
 import {
 	asBrokerError,
@@ -59,7 +59,7 @@ export class RedisStreamsBroker implements Broker {
 	private lifecycle?: ClientLifecycle;
 	private readonly heartbeatSweep: MaintenanceSweep;
 	private readonly reapSweep: MaintenanceSweep;
-	private readonly consumers = new Set<ConsumerState>();
+	private readonly consumers = new Set<ConsumerLoop>();
 	private readonly registryCursors = new Map<string, string>();
 
 	constructor(
@@ -147,21 +147,15 @@ export class RedisStreamsBroker implements Broker {
 		const throughput = this.createThroughput();
 		throughput.start();
 
-		const state: ConsumerState = {
+		const state = new ConsumerLoop({
 			topic: sub.topic,
 			stream,
 			group,
 			broadcast,
-			deliver,
+			handler: deliver,
 			readClient,
 			throughput,
-			stopped: false,
-			readClientAborted: false,
-			consecutiveReadFailures: 0,
-			reclaimCursor: "0",
-			lastReclaimAt: 0,
-			ackBatch: new AckBatch(),
-		};
+		});
 		this.consumers.add(state);
 		this.readLoop(state);
 
@@ -214,7 +208,7 @@ export class RedisStreamsBroker implements Broker {
 
 	async sampleSaturation(): Promise<BrokerSaturation> {
 		const writeClient = this.requireWriteClient();
-		const statesByStream = new Map<string, ConsumerState[]>();
+		const statesByStream = new Map<string, ConsumerLoop[]>();
 		for (const state of this.consumers) {
 			if (state.stopped) continue;
 			const states = statesByStream.get(state.stream) ?? [];
@@ -277,7 +271,7 @@ export class RedisStreamsBroker implements Broker {
 		}
 	}
 
-	private async readLoop(state: ConsumerState): Promise<void> {
+	private async readLoop(state: ConsumerLoop): Promise<void> {
 		while (!state.stopped) {
 			if (state.readClientAborted) {
 				try {
@@ -315,7 +309,7 @@ export class RedisStreamsBroker implements Broker {
 	// it settles, so it never spans handler dispatch: both turns await their command
 	// before Promise.all(deliver), and acks leave on the write client.
 	private async withReadDeadline<T>(
-		state: ConsumerState,
+		state: ConsumerLoop,
 		operation: string,
 		work: (client: ReadClient) => Promise<T>,
 	): Promise<T> {
@@ -349,12 +343,12 @@ export class RedisStreamsBroker implements Broker {
 		return this.options.readTimeout + READ_DEADLINE_GRACE;
 	}
 
-	private abortReadClient(state: ConsumerState, client: ReadClient): void {
+	private abortReadClient(state: ConsumerLoop, client: ReadClient): void {
 		state.readClientAborted = true;
 		if (client.isOpen) client.destroy();
 	}
 
-	private async replaceReadClient(state: ConsumerState): Promise<void> {
+	private async replaceReadClient(state: ConsumerLoop): Promise<void> {
 		const client = createReadClient(this.options.redis);
 		// Assigned before the await so a concurrent stopConsumer can destroy a
 		// client that is still connecting.
@@ -371,7 +365,7 @@ export class RedisStreamsBroker implements Broker {
 		state.readClientAborted = false;
 	}
 
-	private async readTurn(state: ConsumerState): Promise<void> {
+	private async readTurn(state: ConsumerLoop): Promise<void> {
 		const response = await this.withReadDeadline(
 			state,
 			"xReadGroup",
@@ -399,7 +393,7 @@ export class RedisStreamsBroker implements Broker {
 	}
 
 	private async stallConsumer(
-		state: ConsumerState,
+		state: ConsumerLoop,
 		error: unknown,
 	): Promise<void> {
 		state.consecutiveReadFailures += 1;
@@ -425,15 +419,13 @@ export class RedisStreamsBroker implements Broker {
 		return delay + Math.floor(Math.random() * READ_BACKOFF_JITTER);
 	}
 
-	private stopConsumer(state: ConsumerState): void {
+	private stopConsumer(state: ConsumerLoop): void {
 		if (!this.consumers.delete(state)) return;
 
-		state.stopped = true;
-		state.throughput.stop();
-		if (state.readClient.isOpen) state.readClient.destroy();
+		state.stop();
 	}
 
-	private stopsConsumer(state: ConsumerState, error: unknown): boolean {
+	private stopsConsumer(state: ConsumerLoop, error: unknown): boolean {
 		if (state.stopped) return true;
 		if (!isClientClosedError(error) && !isNoGroupError(error)) return false;
 
@@ -446,7 +438,7 @@ export class RedisStreamsBroker implements Broker {
 		return true;
 	}
 
-	private async reclaimTurn(state: ConsumerState): Promise<void> {
+	private async reclaimTurn(state: ConsumerLoop): Promise<void> {
 		const now = Date.now();
 		if (now - state.lastReclaimAt < this.options.reclaim.interval) return;
 		if (!this.shouldReclaim(state)) return;
@@ -491,7 +483,7 @@ export class RedisStreamsBroker implements Broker {
 		this.probe.reclaimed(claimed.length);
 	}
 
-	private shouldReclaim(state: ConsumerState): boolean {
+	private shouldReclaim(state: ConsumerLoop): boolean {
 		return (
 			state.throughput.perSecond() < this.options.reclaim.throughputThreshold
 		);
@@ -659,7 +651,7 @@ export class RedisStreamsBroker implements Broker {
 
 	private async deliveryCount(
 		client: ReadClient,
-		state: ConsumerState,
+		state: ConsumerLoop,
 		id: string,
 	): Promise<number> {
 		const pending = await client.xPendingRange(
@@ -673,7 +665,7 @@ export class RedisStreamsBroker implements Broker {
 	}
 
 	private async deliver(
-		state: ConsumerState,
+		state: ConsumerLoop,
 		id: string,
 		body: Bytes,
 		deliveryCount: number,
@@ -685,7 +677,7 @@ export class RedisStreamsBroker implements Broker {
 			deliveryCount,
 			() => this.scheduleAck(state, id),
 		);
-		await state.deliver(message);
+		await state.handler(message);
 	}
 
 	// Two foot-guns in this ack-coalescing pair: (1) the flush is a microtask, not a
@@ -693,7 +685,7 @@ export class RedisStreamsBroker implements Broker {
 	// loop's Promise.all, so flushing after it deadlocks; the microtask fires while they
 	// are parked. (2) flushAcks swaps in a fresh batch BEFORE awaiting, so acks landing
 	// mid-XACK coalesce into the next batch, not a list already in flight.
-	private scheduleAck(state: ConsumerState, id: string): Promise<void> {
+	private scheduleAck(state: ConsumerLoop, id: string): Promise<void> {
 		const batch = state.ackBatch;
 		if (batch.isEmpty()) {
 			queueMicrotask(() => this.flushAcks(state));
@@ -701,7 +693,7 @@ export class RedisStreamsBroker implements Broker {
 		return batch.add(id);
 	}
 
-	private async flushAcks(state: ConsumerState): Promise<void> {
+	private async flushAcks(state: ConsumerLoop): Promise<void> {
 		const batch = state.ackBatch;
 		state.ackBatch = new AckBatch();
 		try {
