@@ -22,6 +22,7 @@ export class ConsumerRegistry {
 		handle.stop();
 	}
 
+	// Copies before stopping, because stop() deletes from the set it walks.
 	stopAll(): void {
 		for (const handle of [...this.handles]) this.stop(handle);
 	}
