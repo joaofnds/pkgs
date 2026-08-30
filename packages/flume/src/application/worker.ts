@@ -6,6 +6,7 @@ import { Clock } from "../ports/clock";
 import { Codec } from "../ports/codec";
 import { Consumer, DeliveredMessage, RunningConsumer } from "../ports/consumer";
 import { Probe } from "../ports/probe";
+import { ProcessingTiming } from "../ports/processing-timing";
 import { Publisher } from "../ports/publisher";
 import { DuplicateSubscriptionError } from "./duplicate-subscription-error";
 import { Envelope } from "./envelope";
@@ -68,31 +69,53 @@ export class Worker {
 				this.deadLetterTopic(sub),
 				deadLetter.toBytes(),
 			);
-			await msg.ack();
+			await this.ack(sub, msg);
 			this.probe.deadLettered(sub, msg);
 			return;
 		}
 
+		let timing: ProcessingTiming;
 		try {
-			const envelope = Envelope.parse(msg.body);
-			const event = new Event({
-				topic: msg.topic,
-				payload: this.codec.decode(envelope.payload),
-				id: msg.id,
-				deliveryCount: msg.deliveryCount,
-				dispatchedAt: envelope.dispatchedAt,
-			});
-			const start = this.clock.now();
-			await sub.handler.handle(event);
-			const end = this.clock.now();
-			await msg.ack();
-			this.probe.processed(sub, msg, {
-				handlerDurationMs: end.getTime() - start.getTime(),
-				endToEndLatencyMs: end.getTime() - envelope.dispatchedAt.getTime(),
-			});
+			timing = await this.attempt(sub, msg);
 		} catch (error) {
 			await msg.nack();
 			this.probe.failed(sub, msg, error);
+			return;
+		}
+
+		await this.ack(sub, msg);
+		this.probe.processed(sub, msg, timing);
+	}
+
+	private async attempt(
+		sub: Subscription,
+		msg: DeliveredMessage,
+	): Promise<ProcessingTiming> {
+		const envelope = Envelope.parse(msg.body);
+		const event = new Event({
+			topic: msg.topic,
+			payload: this.codec.decode(envelope.payload),
+			id: msg.id,
+			deliveryCount: msg.deliveryCount,
+			dispatchedAt: envelope.dispatchedAt,
+		});
+
+		const start = this.clock.now();
+		await sub.handler.handle(event);
+		const end = this.clock.now();
+
+		return {
+			handlerDurationMs: end.getTime() - start.getTime(),
+			endToEndLatencyMs: end.getTime() - envelope.dispatchedAt.getTime(),
+		};
+	}
+
+	private async ack(sub: Subscription, msg: DeliveredMessage): Promise<void> {
+		try {
+			await msg.ack();
+		} catch (error) {
+			this.probe.ackFailed(sub, msg, error);
+			throw error;
 		}
 	}
 

@@ -285,6 +285,7 @@ interface Probe {
   dispatched(topic: Topic): void;
   processed(sub: Subscription, msg: DeliveredMessage): void;
   failed(sub: Subscription, msg: DeliveredMessage, error: unknown): void;
+  ackFailed(sub: Subscription, msg: DeliveredMessage, error: unknown): void;
   deadLettered(sub: Subscription, msg: DeliveredMessage): void;
 }
 ```
@@ -349,12 +350,18 @@ class Worker {
         dispatchedAt: env.dispatchedAt,   // from the envelope
       });
       await sub.props.handler.handle(event);
-      await msg.ack();
-      this.probe.processed(sub, msg); // guarded
     } catch (error) {
       await msg.nack();                    // redelivered later; count increments
       this.probe.failed(sub, msg, error);  // guarded, AFTER nack
+      return;
     }
+    // OUTSIDE the try, on both branches: a failing ack after a successful
+    // handler is an infrastructure fault, not a handler failure. It reports
+    // probe.ackFailed (guarded) — never failed, never a nack — and rethrows,
+    // so the rejection reaches the adapter's read loop, where its failure
+    // pacing/reporting sees it. `processed` fires only after the ack lands.
+    await msg.ack();
+    this.probe.processed(sub, msg); // guarded
   }
 }
 ```
@@ -622,9 +629,22 @@ broker adapter, but the contract the core guarantees:
 
 A core `Probe` port declares business-relevant events: `dispatched`,
 `dispatchFailed`, `processed` (carrying a `ProcessingTiming` — handler duration +
-dispatch→process latency), `failed`, and `deadLettered`. Production wiring emits
-metrics/logs (`LoggingProbe`); tests use a no-op/recording fake. Keeps
-observability decoupled from the processing logic.
+dispatch→process latency), `failed`, `ackFailed`, and `deadLettered`. Production
+wiring emits metrics/logs (`LoggingProbe`); tests use a no-op/recording fake.
+Keeps observability decoupled from the processing logic.
+
+`ackFailed` is the infrastructure counterpart of `failed`: the handler (or the
+dead-letter publish) succeeded and the broker refused the ack. The `Worker`
+reports it and **rethrows** — no nack, no `processed`/`deadLettered` — so the
+rejection reaches the adapter's read loop, where its failure pacing/reporting
+sees it (flume-redis: `consecutiveReadFailures`/`consumerStalled`).
+`LoggingProbe` logs it at `warn`: persistent ack failure ends at the error-level
+`flume.dead_lettered`, the same symptom path that puts `failed` at `warn`. The
+retry budget is *not* protected from it: `deliveryCount` is broker-owned and no
+broker distinguishes redelivery-after-failed-ack from redelivery-after-nack, so
+after an ack outage heals, a message whose acks failed through `maxAttempts`
+dead-letters without a further attempt — spurious parking of completed work,
+recoverable by redrive, accepted on PKGS-27.
 
 The **adapter** operational plane is a *separate*, adapter-owned `BrokerProbe`
 port (one per adapter — Redis and NATS each have their own), so Redis/NATS

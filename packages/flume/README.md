@@ -161,7 +161,8 @@ Pluggable seams, all injected into `Flume`:
   round-trips non-UTF-8 payloads untouched.
 - **`Clock`** — `SystemClock` in production, `FakeClock` in tests. `dispatchedAt` is
   stamped from the clock, never global time.
-- **`Probe`** — observability hook called on dispatch / process / failure / dead-letter.
+- **`Probe`** — observability hook called on dispatch / process / failure / ack
+  failure / dead-letter.
   `LoggingProbe` emits one structured JSON line per event (override `ProbeLogger` to
   route it elsewhere, see [Log levels](#log-levels)); `FakeProbe` is a no-op for tests. A
   throwing probe can never make `emit` reject or block an ack.

@@ -284,6 +284,59 @@ describe(Worker, () => {
 		expect(msgTwo.acked).toBe(false);
 	});
 
+	describe("when the ack fails after a successful handler", () => {
+		const ackError = new Error("ack rejected");
+
+		it("reports ackFailed with the error and propagates it to the consumer", async () => {
+			const sub = subscription();
+			const w = worker();
+			w.register(sub);
+			await w.start();
+			broker.failAcksWith(ackError);
+
+			await expect(
+				broker.deliverFresh(sub, { id: "1", body: envelopeBytes({ x: 1 }) }),
+			).rejects.toThrow(ackError);
+
+			expect(handler.events).toHaveLength(1);
+			expect(probe.ackFailedCalls).toHaveLength(1);
+			expect(probe.ackFailedCalls[0].error).toBe(ackError);
+			expect(probe.failedCalls).toHaveLength(0);
+			expect(probe.processedCalls).toHaveLength(0);
+		});
+
+		it("reports ackFailed, not deadLettered, when the dead-letter ack fails", async () => {
+			handler.shouldFail = true;
+			const sub = subscription({ maxAttempts: 1 });
+			const w = worker();
+			w.register(sub);
+			await w.start();
+			const body = envelopeBytes({ x: 1 });
+			await broker.deliverFresh(sub, { id: "1", body });
+			broker.failAcksWith(ackError);
+
+			await expect(
+				broker.redeliver(sub, { id: "1", body, count: 2 }),
+			).rejects.toThrow(ackError);
+
+			expect(broker.publishedTo(DEAD_LETTER)).toHaveLength(1);
+			expect(probe.ackFailedCalls).toHaveLength(1);
+			expect(probe.deadLetteredCalls).toHaveLength(0);
+		});
+
+		it("still propagates the ack failure when the probe throws", async () => {
+			const sub = subscription();
+			const w = worker(new ThrowingProbe());
+			w.register(sub);
+			await w.start();
+			broker.failAcksWith(ackError);
+
+			await expect(
+				broker.deliverFresh(sub, { id: "1", body: envelopeBytes({ x: 1 }) }),
+			).rejects.toThrow(ackError);
+		});
+	});
+
 	describe("when the probe throws", () => {
 		it("still acks a processed message", async () => {
 			const sub = subscription();
@@ -364,6 +417,23 @@ describe(Worker, () => {
 
 			expect(order.calls).toEqual([
 				{ call: "failed", acked: false, nacked: true },
+			]);
+		});
+
+		it("reports ackFailed without a nack when the ack fails", async () => {
+			const order = new OrderProbe();
+			const sub = subscription();
+			const w = worker(order);
+			w.register(sub);
+			await w.start();
+			broker.failAcksWith(new Error("ack rejected"));
+
+			await expect(
+				broker.deliverFresh(sub, { id: "1", body: envelopeBytes({ x: 1 }) }),
+			).rejects.toThrow();
+
+			expect(order.calls).toEqual([
+				{ call: "ackFailed", acked: false, nacked: false },
 			]);
 		});
 
