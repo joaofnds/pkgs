@@ -14,6 +14,11 @@ interface Registration {
 export class FakeBroker implements Broker {
 	readonly published: PublishedMessage[] = [];
 	private readonly registrations = new Map<string, Registration>();
+	private ackError: unknown;
+
+	failAcksWith(error: unknown): void {
+		this.ackError = error;
+	}
 
 	async publish(topic: Topic, body: Bytes): Promise<void> {
 		this.published.push(new PublishedMessage(topic, body));
@@ -82,6 +87,10 @@ export class FakeBroker implements Broker {
 			message.body,
 			message.deliveryCount,
 		);
+		if (this.ackError !== undefined) {
+			delivered.failAckWith(this.ackError);
+		}
+
 		await registration.deliver(delivered);
 		return delivered;
 	}

@@ -60,6 +60,18 @@ describe(FakeBroker, () => {
 		).rejects.toThrow();
 	});
 
+	it("fails delivered acks with the seeded error, leaving the message unacked", async () => {
+		broker.failAcksWith(new Error("ack rejected"));
+
+		const msg = await broker.deliverFresh(sub, {
+			id: "1",
+			body: new Uint8Array(),
+		});
+
+		await expect(msg.ack()).rejects.toThrow("ack rejected");
+		expect(msg.acked).toBe(false);
+	});
+
 	it("records every published message", async () => {
 		await broker.publish(new Topic("a"), new Uint8Array([1]));
 		await broker.publish(new Topic("b"), new Uint8Array([2]));

@@ -5,6 +5,7 @@ import { DeliveredMessage } from "../ports/consumer";
 export class FakeDeliveredMessage implements DeliveredMessage {
 	acked = false;
 	nacked = false;
+	private ackError: unknown;
 
 	constructor(
 		readonly topic: Topic,
@@ -13,7 +14,14 @@ export class FakeDeliveredMessage implements DeliveredMessage {
 		readonly deliveryCount: number,
 	) {}
 
+	failAckWith(error: unknown): void {
+		this.ackError = error;
+	}
+
 	async ack(): Promise<void> {
+		if (this.ackError !== undefined) {
+			throw this.ackError;
+		}
 		this.acked = true;
 	}
 
