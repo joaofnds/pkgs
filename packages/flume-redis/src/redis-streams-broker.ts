@@ -131,7 +131,7 @@ export class RedisStreamsBroker implements Broker {
 		const throughput = this.createThroughput();
 		throughput.start();
 
-		const state = new ConsumerLoop({
+		const loop = new ConsumerLoop({
 			topic: sub.topic,
 			stream,
 			group,
@@ -145,12 +145,12 @@ export class RedisStreamsBroker implements Broker {
 			probe: this.probe,
 			registry: this.consumers,
 		});
-		this.consumers.add(state);
-		state.start();
+		this.consumers.add(loop);
+		loop.start();
 
 		return {
 			stop: async () => {
-				this.consumers.stop(state);
+				this.consumers.stop(loop);
 				if (broadcast) await this.destroyBroadcastGroup(stream, group);
 			},
 		};
@@ -197,28 +197,28 @@ export class RedisStreamsBroker implements Broker {
 
 	async sampleSaturation(): Promise<BrokerSaturation> {
 		const writeClient = this.requireWriteClient();
-		const statesByStream = new Map<string, ConsumerHandle[]>();
-		for (const state of this.consumers) {
-			const states = statesByStream.get(state.stream) ?? [];
-			states.push(state);
-			statesByStream.set(state.stream, states);
+		const consumersByStream = new Map<string, ConsumerHandle[]>();
+		for (const consumer of this.consumers) {
+			const handles = consumersByStream.get(consumer.stream) ?? [];
+			handles.push(consumer);
+			consumersByStream.set(consumer.stream, handles);
 		}
 
 		const consumers: ConsumerSaturation[] = [];
 		try {
-			for (const [stream, states] of statesByStream) {
+			for (const [stream, handles] of consumersByStream) {
 				const streamDepth = await writeClient.xLen(stream);
 				const groups = await writeClient.xInfoGroups(stream);
 				const byGroup = new Map(groups.map((g) => [String(g.name), g]));
-				for (const state of states) {
-					const info = byGroup.get(state.group);
+				for (const consumer of handles) {
+					const info = byGroup.get(consumer.group);
 					consumers.push({
 						stream,
-						group: state.group,
+						group: consumer.group,
 						streamDepth,
 						pendingCount: info ? Number(info.pending) : 0,
 						consumerLag: info ? Number(info.lag ?? 0) : 0,
-						throughputPerSecond: state.throughputPerSecond(),
+						throughputPerSecond: consumer.throughputPerSecond(),
 					});
 				}
 			}
@@ -263,10 +263,10 @@ export class RedisStreamsBroker implements Broker {
 		const writeClient = this.writeClient;
 		if (writeClient === undefined) return;
 		const refreshes: Promise<unknown>[] = [];
-		for (const state of this.consumers) {
-			if (!state.broadcast) continue;
+		for (const consumer of this.consumers) {
+			if (!consumer.broadcast) continue;
 			refreshes.push(
-				writeClient.set(this.heartbeatKey(state.group), "1", {
+				writeClient.set(this.heartbeatKey(consumer.group), "1", {
 					expiration: {
 						type: "PX",
 						value: this.options.broadcast.heartbeatTtl,
@@ -294,7 +294,7 @@ export class RedisStreamsBroker implements Broker {
 		const writeClient = this.writeClient;
 		if (writeClient === undefined) return;
 		const streams = new Set<string>();
-		for (const state of this.consumers) streams.add(state.stream);
+		for (const consumer of this.consumers) streams.add(consumer.stream);
 		let groupsDestroyed = 0;
 		let streamsTrimmed = 0;
 		for (const stream of streams) {
@@ -393,9 +393,9 @@ export class RedisStreamsBroker implements Broker {
 
 	private async cleanupBroadcastGroups(): Promise<void> {
 		if (this.writeClient === undefined) return;
-		for (const state of this.consumers) {
-			if (!state.broadcast) continue;
-			await this.destroyBroadcastGroup(state.stream, state.group).catch(
+		for (const consumer of this.consumers) {
+			if (!consumer.broadcast) continue;
+			await this.destroyBroadcastGroup(consumer.stream, consumer.group).catch(
 				() => {},
 			);
 		}
