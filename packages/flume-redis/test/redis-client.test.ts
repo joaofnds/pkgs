@@ -28,6 +28,29 @@ const PROBED_VERSION = "6.2.1";
 const REDIS_URL = "redis://localhost:6381";
 const REFUSED_URL = "redis://localhost:6399";
 
+// A client with no 'error' listener rejects connect() outright and never
+// reaches a retry, so waiting on 'reconnecting' would hang for the whole test
+// timeout and report nothing. Fail with the cause instead.
+function nextReconnect(client: {
+	once(event: "reconnecting", listener: () => void): unknown;
+}): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const timer = setTimeout(
+			() =>
+				reject(
+					new Error(
+						"no 'reconnecting' within 5s: the client is not retrying, which is what a missing 'error' listener does",
+					),
+				),
+			5000,
+		);
+		client.once("reconnecting", () => {
+			clearTimeout(timer);
+			resolve();
+		});
+	});
+}
+
 describe("@redis/client", () => {
 	// Not a library behaviour: the guard on every claim below. See PROBED_VERSION.
 	it("is the version these tests were probed against", () => {
@@ -148,45 +171,50 @@ describe("@redis/client", () => {
 	// not evidence: one address, two destroy() timings, opposite settlements,
 	// isOpen false either way.
 	//
-	// The discriminator is where destroy() lands in the retry cycle, not the
-	// address. Two ways to get these wrong, both probed. Moving a destroy() into
-	// a 'reconnecting' handler body inverts the outcome: awaiting the event then
-	// destroying rejects, while destroying inside the handler resolves, one
-	// microtask apart. And waiting with node:events' once(client, ...) makes the
-	// run crash rather than reject: that helper binds its own 'error' listener
-	// which removes itself when it fires, leaving the client bare for the next
-	// socket fault. Wait on the client's own once() instead.
+	// The discriminator is whether destroy() lands while a connection attempt is
+	// in flight or during the backoff between attempts, and nothing else. In
+	// flight, RedisSocket's connect catch sees !isOpen and rethrows without
+	// scheduling a retry, so connect() rejects; during the backoff, the retry
+	// loop's condition goes false and it returns normally, so connect()
+	// resolves. Probed across the first, second and third 'reconnecting': the
+	// ordinal makes no difference, only the delay after it does.
+	//
+	// So these wait for a 'reconnecting' purely to reach a known point in the
+	// cycle. Destroying immediately after one lands inside the next attempt;
+	// waiting first lands in the backoff. ECONNREFUSED arrives in well under a
+	// millisecond, so the boundary between the two sits between 1ms and 5ms and
+	// the 50ms wait clears it by a wide margin.
+	//
+	// One way to get this wrong: waiting with node:events' once(client, ...)
+	// crashes the run rather than rejecting, because that helper binds its own
+	// 'error' listener which removes itself when it fires, leaving the client
+	// bare for the next socket fault. Wait on the client's own once() instead.
 	describe("connect() settlement after destroy()", () => {
-		it("rejects when destroy() lands right after the first 'reconnecting'", async () => {
+		it("rejects when destroy() lands inside a connection attempt", async () => {
 			const client = createWriteClient({
 				url: REFUSED_URL,
 				socket: { connectTimeout: 200 },
 			});
 			const connecting = client.connect();
 
-			await new Promise((reconnecting) => {
-				client.once("reconnecting", reconnecting);
-			});
+			// Destroying with no wait lands inside the attempt that follows.
+			await nextReconnect(client);
 			client.destroy();
 
 			await expect(connecting).rejects.toThrow();
 			expect(client.isOpen).toBe(false);
 		});
 
-		it("resolves when destroy() lands well after the second 'reconnecting'", async () => {
+		it("resolves when destroy() lands in the backoff between attempts", async () => {
 			const client = createWriteClient({
 				url: REFUSED_URL,
 				socket: { connectTimeout: 200 },
 			});
 			const connecting = client.connect();
 
-			let reconnects = 0;
-			await new Promise<void>((resolve) => {
-				client.on("reconnecting", () => {
-					reconnects++;
-					if (reconnects === 2) resolve();
-				});
-			});
+			// The attempt that follows fails in under a millisecond, so 50ms lands
+			// in the backoff after it.
+			await nextReconnect(client);
 			await new Promise((resolve) => setTimeout(resolve, 50));
 			client.destroy();
 
@@ -218,13 +246,7 @@ describe("@redis/client", () => {
 			},
 		);
 
-		let reconnects = 0;
-		await new Promise<void>((second) => {
-			client.on("reconnecting", () => {
-				reconnects++;
-				if (reconnects === 2) second();
-			});
-		});
+		await nextReconnect(client);
 		await new Promise((resolve) => setTimeout(resolve, 50));
 		client.destroy();
 
