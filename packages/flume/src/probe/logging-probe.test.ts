@@ -147,6 +147,12 @@ describe(LoggingProbe, () => {
 		expect(logger.lines[0].fields.error).toBe("plain string reason");
 	});
 
+	it("stringifies a non-Error ack failure reason", () => {
+		probe.ackFailed(sub, message(), "plain string reason");
+
+		expect(logger.lines[0].fields.error).toBe("plain string reason");
+	});
+
 	it("logs a dead-letter at error", () => {
 		probe.deadLettered(sub, message(4));
 
