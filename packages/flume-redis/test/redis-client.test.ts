@@ -1,10 +1,6 @@
 import { readFileSync } from "node:fs";
 import { uniqueTopic } from "@joaofnds/flume-tck";
-import {
-	ClientClosedError,
-	DisconnectsClientError,
-	createClient,
-} from "redis";
+import { ClientClosedError, createClient, DisconnectsClientError } from "redis";
 import { describe, expect, it } from "vitest";
 import { createReadClient, createWriteClient } from "../src/clients";
 import { isClientClosedError } from "../src/index";
