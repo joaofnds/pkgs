@@ -22,7 +22,7 @@ interface ErrorEmitter {
 }
 
 // Without this listener a socket fault becomes an uncaught exception that kills the host process.
-function ignoreSocketErrors(client: ErrorEmitter): void {
+export function ignoreSocketErrors(client: ErrorEmitter): void {
 	client.on("error", () => {});
 }
 

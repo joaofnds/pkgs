@@ -1,5 +1,6 @@
 import { Throughput } from "@joaofnds/throughput";
 import { createClient, RESP_TYPES } from "redis";
+import { ignoreSocketErrors } from "../../src/clients";
 import {
 	BrokerProbe,
 	RedisStreamsBroker,
@@ -16,9 +17,12 @@ const TEST_RECLAIM = {
 };
 
 function maintClient() {
-	return createClient({ url: REDIS_URL, RESP: 2 }).withTypeMapping({
+	const client = createClient({ url: REDIS_URL, RESP: 2 }).withTypeMapping({
 		[RESP_TYPES.BLOB_STRING]: Buffer,
 	});
+	ignoreSocketErrors(client);
+
+	return client;
 }
 
 export class BrokerHarness {
