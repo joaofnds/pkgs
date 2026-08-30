@@ -11,7 +11,6 @@ import {
 	Topic,
 } from "@joaofnds/flume";
 import { Throughput } from "@joaofnds/throughput";
-import { AckBatch } from "./ack-batch";
 import { BrokerAlreadyConnectedError } from "./broker-already-connected-error";
 import { BrokerNotConnectedError } from "./broker-not-connected-error";
 import { BrokerProbe } from "./broker-probe";
@@ -26,7 +25,6 @@ import {
 import { ConsumerLoop } from "./consumer-loop";
 import { ConsumerHandle, ConsumerRegistry } from "./consumer-registry";
 import { ConsumerSaturation } from "./consumer-saturation";
-import { RedisDeliveredMessage } from "./delivered-message";
 import {
 	asBrokerError,
 	isClientClosedError,
@@ -47,8 +45,6 @@ import { minStreamId } from "./stream-id";
 import { bodyOf, idOf, PAYLOAD_FIELD } from "./stream-message";
 
 const REGISTRY_SCAN_COUNT = 100;
-const READ_BACKOFF_STEP = 50;
-const READ_BACKOFF_JITTER = 200;
 const READ_DEADLINE_GRACE = 5000;
 
 export class RedisStreamsBroker implements Broker {
@@ -156,6 +152,8 @@ export class RedisStreamsBroker implements Broker {
 			handler: deliver,
 			readClient,
 			throughput,
+			options: this.options,
+			writeClient: () => this.requireWriteClient(),
 		});
 		this.consumers.add(state);
 		this.readLoop(state);
@@ -386,7 +384,7 @@ export class RedisStreamsBroker implements Broker {
 				stream.messages.map((raw) => {
 					this.throughput.hit();
 					state.throughput.hit();
-					return this.deliver(state, idOf(raw.id), bodyOf(raw.message), 1);
+					return state.deliver(idOf(raw.id), bodyOf(raw.message), 1);
 				}),
 			);
 		}
@@ -407,16 +405,7 @@ export class RedisStreamsBroker implements Broker {
 			});
 		}
 
-		await sleep(this.readBackoff(state.consecutiveReadFailures));
-	}
-
-	private readBackoff(consecutive: number): number {
-		const delay = Math.min(
-			2 ** consecutive * READ_BACKOFF_STEP,
-			this.options.readTimeout,
-		);
-
-		return delay + Math.floor(Math.random() * READ_BACKOFF_JITTER);
+		await sleep(state.readBackoff(state.consecutiveReadFailures));
 	}
 
 	private stopsConsumer(state: ConsumerLoop, error: unknown): boolean {
@@ -435,7 +424,7 @@ export class RedisStreamsBroker implements Broker {
 	private async reclaimTurn(state: ConsumerLoop): Promise<void> {
 		const now = Date.now();
 		if (now - state.lastReclaimAt < this.options.reclaim.interval) return;
-		if (!this.shouldReclaim(state)) return;
+		if (!state.shouldReclaim()) return;
 
 		state.lastReclaimAt = now;
 		const claim = await this.withReadDeadline(state, "xAutoClaim", (client) =>
@@ -465,22 +454,16 @@ export class RedisStreamsBroker implements Broker {
 						return {
 							id,
 							body: bodyOf(raw.message),
-							count: await this.deliveryCount(client, state, id),
+							count: await state.deliveryCount(client, id),
 						};
 					}),
 				),
 		);
 		await Promise.all(
-			claimed.map((msg) => this.deliver(state, msg.id, msg.body, msg.count)),
+			claimed.map((msg) => state.deliver(msg.id, msg.body, msg.count)),
 		);
 
 		this.probe.reclaimed(claimed.length);
-	}
-
-	private shouldReclaim(state: ConsumerLoop): boolean {
-		return (
-			state.throughput.perSecond() < this.options.reclaim.throughputThreshold
-		);
 	}
 
 	private async heartbeat(): Promise<void> {
@@ -641,65 +624,6 @@ export class RedisStreamsBroker implements Broker {
 
 	private heartbeatKey(group: string): string {
 		return `flume:hb:${group}`;
-	}
-
-	private async deliveryCount(
-		client: ReadClient,
-		state: ConsumerLoop,
-		id: string,
-	): Promise<number> {
-		const pending = await client.xPendingRange(
-			state.stream,
-			state.group,
-			id,
-			id,
-			1,
-		);
-		return pending.length > 0 ? pending[0].deliveriesCounter : 1;
-	}
-
-	private async deliver(
-		state: ConsumerLoop,
-		id: string,
-		body: Bytes,
-		deliveryCount: number,
-	): Promise<void> {
-		const message = new RedisDeliveredMessage(
-			state.topic,
-			id,
-			body,
-			deliveryCount,
-			() => this.scheduleAck(state, id),
-		);
-		await state.handler(message);
-	}
-
-	// Two foot-guns in this ack-coalescing pair: (1) the flush is a microtask, not a
-	// Promise.all-completion callback — handlers await their own ack inside the read
-	// loop's Promise.all, so flushing after it deadlocks; the microtask fires while they
-	// are parked. (2) flushAcks swaps in a fresh batch BEFORE awaiting, so acks landing
-	// mid-XACK coalesce into the next batch, not a list already in flight.
-	private scheduleAck(state: ConsumerLoop, id: string): Promise<void> {
-		const batch = state.ackBatch;
-		if (batch.isEmpty()) {
-			queueMicrotask(() => this.flushAcks(state));
-		}
-		return batch.add(id);
-	}
-
-	private async flushAcks(state: ConsumerLoop): Promise<void> {
-		const batch = state.ackBatch;
-		state.ackBatch = new AckBatch();
-		try {
-			await this.requireWriteClient().xAck(
-				state.stream,
-				state.group,
-				batch.ids,
-			);
-			batch.resolve();
-		} catch (error) {
-			batch.reject(asBrokerError(error));
-		}
 	}
 
 	private requireWriteClient(): WriteClient {
