@@ -12,9 +12,9 @@ import { isClientClosedError } from "../src/index";
 // Learning tests against @redis/client.
 //
 // These pin the library lifecycle behaviours this package's correctness rests
-// on. Each test names the production line it guards. A failure here is a
-// notification that the library changed under us, not a test to relax: read the
-// named production line and decide, then change both together.
+// on. Each test names, by symbol, the production code it guards. A failure here
+// is a notification that the library changed under us, not a test to relax: read
+// the named symbol and decide, then change both together.
 //
 // PROBED_VERSION is the version every claim below was observed against. The
 // first test asserts it against what is installed, so a bump reds this file
@@ -38,9 +38,9 @@ describe("@redis/client", () => {
 		expect(JSON.parse(manifest).version).toBe(PROBED_VERSION);
 	});
 
-	// Guards ignoreSocketErrors (clients.ts:25-27), called by createReadClient
-	// at :34 and createWriteClient at :42. Without that listener a socket fault
-	// is an unhandled 'error' event, which kills the host process.
+	// Guards ignoreSocketErrors, called by createReadClient and createWriteClient.
+	// Without that listener a socket fault is an unhandled 'error' event, which
+	// kills the host process.
 	it("leaves a bare client with no 'error' listener, so emitting throws, while both factories bind exactly one", () => {
 		const bare = createClient({ url: REFUSED_URL });
 		expect(bare.listenerCount("error")).toBe(0);
@@ -55,10 +55,10 @@ describe("@redis/client", () => {
 		expect(() => write.emit("error", new Error("boom"))).not.toThrow();
 	});
 
-	// Guards the isOpen guards before destroy() at consumer-loop.ts:149 and :274.
-	// destroy() returns void and throws synchronously — it does not reject — so
-	// an unguarded destroy() on an already-stopped consumer would throw where
-	// nothing is awaiting it.
+	// Guards the isOpen guards before destroy() in ConsumerLoop.abortReadClient
+	// and ConsumerLoop.stop. destroy() returns void and throws synchronously —
+	// it does not reject — so an unguarded destroy() on an already-stopped
+	// consumer would throw where nothing is awaiting it.
 	it("throws ClientClosedError synchronously when destroy() is called on a client that is not open", () => {
 		const client = createClient({ url: REFUSED_URL });
 
@@ -75,10 +75,11 @@ describe("@redis/client", () => {
 		expect(isClientClosedError(thrown)).toBe(true);
 	});
 
-	// Guards the three connect() sites at redis-streams-broker.ts:78, :129, :167
-	// and consumer-loop.ts:157, all of which await connect() and take its
-	// settlement as their signal. Against an unreachable server there is no
-	// settlement to take, so a caller who needs a bound owns it.
+	// Guards the four connect() sites — RedisStreamsBroker.connect, .consume and
+	// .redriveDeadLetters, and ConsumerLoop.replaceReadClient — all of which
+	// await connect() and take its settlement as their signal. Against an
+	// unreachable server there is no settlement to take, so a caller who needs a
+	// bound owns it.
 	//
 	// The never-settling property belongs to the 'error' listener, not to the
 	// library: the same address under a listener-less client rejects. That half
@@ -141,9 +142,9 @@ describe("@redis/client", () => {
 	// Guards the same four connect() sites, from the other side: their await is
 	// both what trusts the settlement and the only handler on the promise.
 	//
-	// consumer-loop.ts:159-162 already carries the conclusion in a comment —
-	// connect() resolves on a client destroyed mid-connect, so isOpen is what
-	// says the replacement succeeded. These two pin why a resolved connect() is
+	// ConsumerLoop.replaceReadClient already carries the conclusion in a
+	// comment — connect() resolves on a client destroyed mid-connect, so isOpen
+	// is what says the replacement succeeded. These two pin why a resolved connect() is
 	// not evidence: one address, two destroy() timings, opposite settlements,
 	// isOpen false either way.
 	//
@@ -239,7 +240,7 @@ describe("@redis/client", () => {
 		expect(settled).toBe(true);
 	});
 
-	// Guards ConsumerLoop.stopsConsumer's classification (consumer-loop.ts:208).
+	// Guards ConsumerLoop.stopsConsumer's classification.
 	// The two errors a stop produces are not the same class, and the difference
 	// decides whether a consumer is stopped or kept: a DisconnectsClientError is
 	// not a ClientClosedError, so a destroy() flume itself issued does not route
