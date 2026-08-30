@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { uniqueTopic } from "@joaofnds/flume-tck";
 import {
 	ClientClosedError,
@@ -8,23 +9,35 @@ import { describe, expect, it } from "vitest";
 import { createReadClient, createWriteClient } from "../src/clients";
 import { isClientClosedError } from "../src/index";
 
-// Learning tests against @redis/client, probed at version 6.2.1.
+// Learning tests against @redis/client.
 //
 // These pin the library lifecycle behaviours this package's correctness rests
 // on. Each test names the production line it guards. A failure here is a
 // notification that the library changed under us, not a test to relax: read the
 // named production line and decide, then change both together.
 //
-// On a redis bump, edit the version above in the same commit that re-greens
-// these tests, or the record lies.
+// PROBED_VERSION is the version every claim below was observed against. The
+// first test asserts it against what is installed, so a bump reds this file
+// until someone re-observes the behaviours and edits the constant in the same
+// commit — otherwise the record would quietly start lying.
 //
 // peerDependencies.redis is ^6.0.0 while this file pins what the workspace
 // installs. Green here says nothing about the rest of the range.
 
+const PROBED_VERSION = "6.2.1";
 const REDIS_URL = "redis://localhost:6381";
 const REFUSED_URL = "redis://localhost:6399";
 
 describe("@redis/client", () => {
+	// Not a library behaviour: the guard on every claim below. See PROBED_VERSION.
+	it("is the version these tests were probed against", () => {
+		const manifest = readFileSync(
+			require.resolve("redis/package.json"),
+			"utf8",
+		);
+		expect(JSON.parse(manifest).version).toBe(PROBED_VERSION);
+	});
+
 	// Guards ignoreSocketErrors (clients.ts:25-27), called by createReadClient
 	// at :34 and createWriteClient at :42. Without that listener a socket fault
 	// is an unhandled 'error' event, which kills the host process.
