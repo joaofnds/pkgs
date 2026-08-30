@@ -283,7 +283,8 @@ interface Clock { now(): Date; }
 // control-flow side-effects.
 interface Probe {
   dispatched(topic: Topic): void;
-  processed(sub: Subscription, msg: DeliveredMessage): void;
+  dispatchFailed(topic: Topic, error: unknown): void;
+  processed(sub: Subscription, msg: DeliveredMessage, timing: ProcessingTiming): void;
   failed(sub: Subscription, msg: DeliveredMessage, error: unknown): void;
   ackFailed(sub: Subscription, msg: DeliveredMessage, error: unknown): void;
   deadLettered(sub: Subscription, msg: DeliveredMessage): void;
@@ -319,6 +320,7 @@ class Worker {
     private readonly consumer: Consumer,
     private readonly publisher: Publisher, // for dead-letter
     private readonly codec: Codec,
+    private readonly clock: Clock,         // times the handler for `processed` (§11)
     private readonly probe: Probe,
   ) {}
 
@@ -336,8 +338,8 @@ class Worker {
   private async process(sub: Subscription, msg: DeliveredMessage) {
     if (msg.deliveryCount > sub.props.retry.props.maxAttempts) {
       await this.publisher.publish(this.deadLetterTopic(sub, msg.topic), msg.body);
-      await msg.ack();
-      this.probe.deadLettered(sub, msg); // guarded
+      await this.ack(sub, msg);          // shared helper — see below
+      this.probe.deadLettered(sub, msg); // guarded, only after the ack lands
       return;
     }
     try {
@@ -349,19 +351,28 @@ class Worker {
         deliveryCount: msg.deliveryCount, // broker-tracked
         dispatchedAt: env.dispatchedAt,   // from the envelope
       });
-      await sub.props.handler.handle(event);
+      await sub.props.handler.handle(event); // timed via the injected Clock (§11)
     } catch (error) {
       await msg.nack();                    // redelivered later; count increments
       this.probe.failed(sub, msg, error);  // guarded, AFTER nack
       return;
     }
-    // OUTSIDE the try, on both branches: a failing ack after a successful
-    // handler is an infrastructure fault, not a handler failure. It reports
-    // probe.ackFailed (guarded) — never failed, never a nack — and rethrows,
-    // so the rejection reaches the adapter's read loop, where its failure
-    // pacing/reporting sees it. `processed` fires only after the ack lands.
-    await msg.ack();
-    this.probe.processed(sub, msg); // guarded
+    await this.ack(sub, msg);
+    this.probe.processed(sub, msg, timing); // guarded, only after the ack lands
+  }
+
+  // BOTH acks route here, OUTSIDE the handler try: a failing ack after a
+  // successful handler (or after the dead-letter publish) is an infrastructure
+  // fault, not a handler failure. It reports probe.ackFailed (guarded) — never
+  // failed, never a nack — and rethrows, so the rejection reaches the adapter's
+  // read loop, where its failure pacing/reporting sees it.
+  private async ack(sub: Subscription, msg: DeliveredMessage) {
+    try {
+      await msg.ack();
+    } catch (error) {
+      this.probe.ackFailed(sub, msg, error); // guarded
+      throw error;
+    }
   }
 }
 ```
@@ -638,8 +649,12 @@ dead-letter publish) succeeded and the broker refused the ack. The `Worker`
 reports it and **rethrows** — no nack, no `processed`/`deadLettered` — so the
 rejection reaches the adapter's read loop, where its failure pacing/reporting
 sees it (flume-redis: `consecutiveReadFailures`/`consumerStalled`).
-`LoggingProbe` logs it at `warn`: persistent ack failure ends at the error-level
-`flume.dead_lettered`, the same symptom path that puts `failed` at `warn`. The
+`LoggingProbe` logs it at `warn`: the error-level symptom path in core is
+`flume.dead_lettered`, reached once redelivery exhausts the budget — after the
+outage heals, since a dead write client blocks the dead-letter ack too. While
+the outage persists, the loud signal is the adapter's stall reporting
+(flume-redis: `flume.broker.consumer_stalled` at `error`), fed by the very
+rejection this member rethrows. The
 retry budget is *not* protected from it: `deliveryCount` is broker-owned and no
 broker distinguishes redelivery-after-failed-ack from redelivery-after-nack, so
 after an ack outage heals, a message whose acks failed through `maxAttempts`
