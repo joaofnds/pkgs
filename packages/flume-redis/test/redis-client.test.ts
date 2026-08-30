@@ -55,4 +55,67 @@ describe("@redis/client", () => {
 		expect(thrown).toBeInstanceOf(ClientClosedError);
 		expect(isClientClosedError(thrown)).toBe(true);
 	});
+
+	// Guards the three connect() sites at redis-streams-broker.ts:78, :129, :167
+	// and consumer-loop.ts:157, all of which await connect() and take its
+	// settlement as their signal. Against an unreachable server there is no
+	// settlement to take, so a caller who needs a bound owns it.
+	//
+	// The never-settling property belongs to the 'error' listener, not to the
+	// library: the same address under a listener-less client rejects. That half
+	// is asserted here too, so deleting ignoreSocketErrors turns this red.
+	//
+	// 'error' is counted by reading listenerCount, never by binding a counter: a
+	// test-added 'error' listener would itself suppress the rejection, and the
+	// test would pass with the factory gutted.
+	//
+	// The fast cadence is defaultReconnectStrategy's, not connectTimeout's:
+	// ECONNREFUSED lands in about a millisecond, so no connect timeout ever
+	// applies. The option is insurance for a host that filters port 6399 rather
+	// than refusing it, where the 5000ms default would blow the budget.
+	it("never settles connect() against a refused address, while a listener-less client rejects", async () => {
+		const client = createWriteClient({
+			url: REFUSED_URL,
+			socket: { connectTimeout: 200 },
+		});
+
+		let reconnects = 0;
+		client.on("reconnecting", () => {
+			reconnects++;
+		});
+
+		let settled = false;
+		const connecting = client.connect().then(
+			() => {
+				settled = true;
+			},
+			() => {
+				settled = true;
+			},
+		);
+
+		const bare = createClient({
+			url: REFUSED_URL,
+			socket: { connectTimeout: 200 },
+		});
+		const bareSettlement = bare.connect().then(
+			() => "resolved",
+			() => "rejected",
+		);
+
+		await new Promise((resolve) => setTimeout(resolve, 1200));
+
+		expect(settled).toBe(false);
+		expect(client.isOpen).toBe(true);
+		expect(client.isReady).toBe(false);
+		expect(client.listenerCount("error")).toBe(1);
+		// Counts vary run to run; only their growth is the behaviour.
+		expect(reconnects).toBeGreaterThanOrEqual(2);
+
+		expect(await bareSettlement).toBe("rejected");
+
+		if (client.isOpen) client.destroy();
+		if (bare.isOpen) bare.destroy();
+		await Promise.allSettled([connecting, bareSettlement]);
+	});
 });
