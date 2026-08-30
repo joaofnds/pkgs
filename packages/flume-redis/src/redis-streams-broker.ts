@@ -13,7 +13,6 @@ import {
 import { Throughput } from "@joaofnds/throughput";
 import { AckBatch } from "./ack-batch";
 import { BrokerAlreadyConnectedError } from "./broker-already-connected-error";
-import { BrokerError } from "./broker-error";
 import { BrokerNotConnectedError } from "./broker-not-connected-error";
 import { BrokerProbe } from "./broker-probe";
 import { BrokerSaturation } from "./broker-saturation";
@@ -44,8 +43,8 @@ import {
 import { ReadDeadlineError } from "./read-deadline-error";
 import { RedriveResult } from "./redrive-result";
 import { minStreamId } from "./stream-id";
+import { bodyOf, idOf, PAYLOAD_FIELD } from "./stream-message";
 
-const PAYLOAD_FIELD = "payload";
 const REGISTRY_SCAN_COUNT = 100;
 const READ_BACKOFF_STEP = 50;
 const READ_BACKOFF_JITTER = 200;
@@ -721,18 +720,4 @@ export class RedisStreamsBroker implements Broker {
 		if (this.writeClient === undefined) throw new BrokerNotConnectedError();
 		return this.writeClient;
 	}
-}
-
-function idOf(id: Buffer | string): string {
-	return id.toString();
-}
-
-function bodyOf(message: Record<string, Buffer>): Bytes {
-	const body = message[PAYLOAD_FIELD];
-	if (body === undefined) {
-		throw new BrokerError(
-			`stream message is missing the "${PAYLOAD_FIELD}" field`,
-		);
-	}
-	return body;
 }
