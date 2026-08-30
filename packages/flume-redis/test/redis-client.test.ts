@@ -116,7 +116,12 @@ describe("@redis/client", () => {
 	// ECONNREFUSED lands in about a millisecond, so no connect timeout ever
 	// applies. The option is insurance for a host that filters port 6399 rather
 	// than refusing it, where the 5000ms default would blow the budget.
-	it("never settles connect() against a refused address, while a listener-less client rejects", async () => {
+	// The window is a lower bound, not proof of "never": it shows connect() still
+	// pending and still retrying after 1200ms, while the same address under a
+	// listener-less client has already rejected. A future strategy that gave up
+	// at, say, five seconds would leave this green, and that is a limit of the
+	// test, not a claim about the library.
+	it("leaves connect() pending and retrying against a refused address, while a listener-less client rejects", async () => {
 		const client = createWriteClient({
 			url: REFUSED_URL,
 			socket: { connectTimeout: 200 },
