@@ -41,6 +41,13 @@ export class LoggingProbe implements Probe {
 		});
 	}
 
+	ackFailed(sub: Subscription, msg: DeliveredMessage, error: unknown): void {
+		this.logger.warn("flume.ack_failed", {
+			...this.context(sub, msg),
+			error: this.reason(error),
+		});
+	}
+
 	deadLettered(sub: Subscription, msg: DeliveredMessage): void {
 		this.logger.error("flume.dead_lettered", this.context(sub, msg));
 	}

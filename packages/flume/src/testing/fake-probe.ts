@@ -21,6 +21,12 @@ export interface DispatchFailedCall {
 	error: unknown;
 }
 
+export interface AckFailedCall {
+	sub: Subscription;
+	msg: DeliveredMessage;
+	error: unknown;
+}
+
 export interface DeadLetteredCall {
 	sub: Subscription;
 	msg: DeliveredMessage;
@@ -31,6 +37,7 @@ export class FakeProbe implements Probe {
 	readonly dispatchFailedCalls: DispatchFailedCall[] = [];
 	readonly processedCalls: ProcessedCall[] = [];
 	readonly failedCalls: FailedCall[] = [];
+	readonly ackFailedCalls: AckFailedCall[] = [];
 	readonly deadLetteredCalls: DeadLetteredCall[] = [];
 
 	dispatched(topic: Topic): void {
@@ -51,6 +58,10 @@ export class FakeProbe implements Probe {
 
 	failed(sub: Subscription, msg: DeliveredMessage, error: unknown): void {
 		this.failedCalls.push({ sub, msg, error });
+	}
+
+	ackFailed(sub: Subscription, msg: DeliveredMessage, error: unknown): void {
+		this.ackFailedCalls.push({ sub, msg, error });
 	}
 
 	deadLettered(sub: Subscription, msg: DeliveredMessage): void {

@@ -27,6 +27,10 @@ export class GuardedProbe implements Probe {
 		this.guard(() => this.delegate.failed(sub, msg, error));
 	}
 
+	ackFailed(sub: Subscription, msg: DeliveredMessage, error: unknown): void {
+		this.guard(() => this.delegate.ackFailed(sub, msg, error));
+	}
+
 	deadLettered(sub: Subscription, msg: DeliveredMessage): void {
 		this.guard(() => this.delegate.deadLettered(sub, msg));
 	}

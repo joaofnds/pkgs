@@ -3,7 +3,7 @@ import { Probe } from "../ports/probe";
 import { FakeDeliveredMessage } from "../testing/fake-delivered-message";
 
 export interface ProbeCall {
-	call: "dispatched" | "processed" | "failed" | "deadLettered";
+	call: "dispatched" | "processed" | "failed" | "ackFailed" | "deadLettered";
 	acked: boolean;
 	nacked: boolean;
 }
@@ -23,6 +23,10 @@ export class OrderProbe implements Probe {
 
 	failed(_sub: unknown, msg: DeliveredMessage): void {
 		this.record("failed", msg);
+	}
+
+	ackFailed(_sub: unknown, msg: DeliveredMessage): void {
+		this.record("ackFailed", msg);
 	}
 
 	deadLettered(_sub: unknown, msg: DeliveredMessage): void {

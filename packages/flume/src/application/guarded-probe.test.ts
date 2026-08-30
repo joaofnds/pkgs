@@ -41,11 +41,13 @@ describe(GuardedProbe, () => {
 		probe.dispatched(topic);
 		probe.processed(sub, msg, timing);
 		probe.failed(sub, msg, new Error("boom"));
+		probe.ackFailed(sub, msg, new Error("boom"));
 		probe.deadLettered(sub, msg);
 
 		expect(delegate.dispatchedTopics).toHaveLength(1);
 		expect(delegate.processedCalls).toHaveLength(1);
 		expect(delegate.failedCalls).toHaveLength(1);
+		expect(delegate.ackFailedCalls).toHaveLength(1);
 		expect(delegate.deadLetteredCalls).toHaveLength(1);
 	});
 
@@ -56,6 +58,7 @@ describe(GuardedProbe, () => {
 		expect(() => throwing.dispatched(topic)).not.toThrow();
 		expect(() => throwing.processed(sub, msg, timing)).not.toThrow();
 		expect(() => throwing.failed(sub, msg, new Error("boom"))).not.toThrow();
+		expect(() => throwing.ackFailed(sub, msg, new Error("boom"))).not.toThrow();
 		expect(() => throwing.deadLettered(sub, msg)).not.toThrow();
 	});
 });

@@ -13,6 +13,9 @@ export class ThrowingProbe implements Probe {
 	failed(): void {
 		throw new Error("probe boom");
 	}
+	ackFailed(): void {
+		throw new Error("probe boom");
+	}
 	deadLettered(): void {
 		throw new Error("probe boom");
 	}

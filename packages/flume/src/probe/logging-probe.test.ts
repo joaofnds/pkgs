@@ -123,6 +123,24 @@ describe(LoggingProbe, () => {
 		]);
 	});
 
+	it("logs an ack failure at warn with the error message", () => {
+		probe.ackFailed(sub, message(2), new Error("write client is closed"));
+
+		expect(logger.lines).toEqual([
+			{
+				level: "warn",
+				event: "flume.ack_failed",
+				fields: {
+					subscription: "svc:send-email",
+					topic: "user.created",
+					id: "1718-0",
+					deliveryCount: 2,
+					error: "write client is closed",
+				},
+			},
+		]);
+	});
+
 	it("stringifies a non-Error failure reason", () => {
 		probe.failed(sub, message(), "plain string reason");
 

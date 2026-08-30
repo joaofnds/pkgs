@@ -12,5 +12,6 @@ export interface Probe {
 		timing: ProcessingTiming,
 	): void;
 	failed(sub: Subscription, msg: DeliveredMessage, error: unknown): void;
+	ackFailed(sub: Subscription, msg: DeliveredMessage, error: unknown): void;
 	deadLettered(sub: Subscription, msg: DeliveredMessage): void;
 }

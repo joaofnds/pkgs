@@ -105,6 +105,7 @@ describe(Dispatcher, () => {
 			dispatchFailed: () => {},
 			processed: () => {},
 			failed: () => {},
+			ackFailed: () => {},
 			deadLettered: () => {},
 		};
 
