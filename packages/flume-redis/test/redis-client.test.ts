@@ -1,6 +1,7 @@
-import { createClient } from "redis";
+import { ClientClosedError, createClient } from "redis";
 import { describe, expect, it } from "vitest";
 import { createReadClient, createWriteClient } from "../src/clients";
+import { isClientClosedError } from "../src/index";
 
 // Learning tests against @redis/client, probed at version 6.2.1.
 //
@@ -33,5 +34,25 @@ describe("@redis/client", () => {
 		const write = createWriteClient({ url: REFUSED_URL });
 		expect(write.listenerCount("error")).toBe(1);
 		expect(() => write.emit("error", new Error("boom"))).not.toThrow();
+	});
+
+	// Guards the isOpen guards before destroy() at consumer-loop.ts:149 and :274.
+	// destroy() returns void and throws synchronously — it does not reject — so
+	// an unguarded destroy() on an already-stopped consumer would throw where
+	// nothing is awaiting it.
+	it("throws ClientClosedError synchronously when destroy() is called on a client that is not open", () => {
+		const client = createClient({ url: REFUSED_URL });
+
+		let thrown: unknown;
+		expect(() => {
+			try {
+				client.destroy();
+			} catch (error) {
+				thrown = error;
+				throw error;
+			}
+		}).toThrow();
+		expect(thrown).toBeInstanceOf(ClientClosedError);
+		expect(isClientClosedError(thrown)).toBe(true);
 	});
 });
