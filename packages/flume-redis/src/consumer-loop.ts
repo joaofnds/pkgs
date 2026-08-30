@@ -2,8 +2,9 @@ import { DeliveredMessage, Topic } from "@joaofnds/flume";
 import { Throughput } from "@joaofnds/throughput";
 import { AckBatch } from "./ack-batch";
 import { ReadClient } from "./clients";
+import { ConsumerHandle } from "./consumer-registry";
 
-export class ConsumerLoop {
+export class ConsumerLoop implements ConsumerHandle {
 	readonly topic: Topic;
 	readonly stream: string;
 	readonly group: string;

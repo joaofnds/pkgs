@@ -24,6 +24,7 @@ import {
 	WriteClient,
 } from "./clients";
 import { ConsumerLoop } from "./consumer-loop";
+import { ConsumerHandle, ConsumerRegistry } from "./consumer-registry";
 import { ConsumerSaturation } from "./consumer-saturation";
 import { RedisDeliveredMessage } from "./delivered-message";
 import {
@@ -59,7 +60,7 @@ export class RedisStreamsBroker implements Broker {
 	private lifecycle?: ClientLifecycle;
 	private readonly heartbeatSweep: MaintenanceSweep;
 	private readonly reapSweep: MaintenanceSweep;
-	private readonly consumers = new Set<ConsumerLoop>();
+	private readonly consumers = new ConsumerRegistry();
 	private readonly registryCursors = new Map<string, string>();
 
 	constructor(
@@ -111,7 +112,7 @@ export class RedisStreamsBroker implements Broker {
 		this.reapSweep.stop();
 		this.throughput.stop();
 		await this.cleanupBroadcastGroups();
-		for (const state of [...this.consumers]) this.stopConsumer(state);
+		this.consumers.stopAll();
 		await Promise.allSettled([this.writeClient?.close()]);
 		this.writeClient = undefined;
 		this.lifecycle = undefined;
@@ -161,7 +162,7 @@ export class RedisStreamsBroker implements Broker {
 
 		return {
 			stop: async () => {
-				this.stopConsumer(state);
+				this.consumers.stop(state);
 				if (broadcast) await this.destroyBroadcastGroup(stream, group);
 			},
 		};
@@ -208,9 +209,8 @@ export class RedisStreamsBroker implements Broker {
 
 	async sampleSaturation(): Promise<BrokerSaturation> {
 		const writeClient = this.requireWriteClient();
-		const statesByStream = new Map<string, ConsumerLoop[]>();
+		const statesByStream = new Map<string, ConsumerHandle[]>();
 		for (const state of this.consumers) {
-			if (state.stopped) continue;
 			const states = statesByStream.get(state.stream) ?? [];
 			states.push(state);
 			statesByStream.set(state.stream, states);
@@ -230,7 +230,7 @@ export class RedisStreamsBroker implements Broker {
 						streamDepth,
 						pendingCount: info ? Number(info.pending) : 0,
 						consumerLag: info ? Number(info.lag ?? 0) : 0,
-						throughputPerSecond: state.throughput.perSecond(),
+						throughputPerSecond: state.throughputPerSecond(),
 					});
 				}
 			}
@@ -419,17 +419,11 @@ export class RedisStreamsBroker implements Broker {
 		return delay + Math.floor(Math.random() * READ_BACKOFF_JITTER);
 	}
 
-	private stopConsumer(state: ConsumerLoop): void {
-		if (!this.consumers.delete(state)) return;
-
-		state.stop();
-	}
-
 	private stopsConsumer(state: ConsumerLoop, error: unknown): boolean {
 		if (state.stopped) return true;
 		if (!isClientClosedError(error) && !isNoGroupError(error)) return false;
 
-		this.stopConsumer(state);
+		this.consumers.stop(state);
 		this.probe.consumerStopped({
 			stream: state.stream,
 			group: state.group,
@@ -494,7 +488,7 @@ export class RedisStreamsBroker implements Broker {
 		if (writeClient === undefined) return;
 		const refreshes: Promise<unknown>[] = [];
 		for (const state of this.consumers) {
-			if (!state.broadcast || state.stopped) continue;
+			if (!state.broadcast) continue;
 			refreshes.push(
 				writeClient.set(this.heartbeatKey(state.group), "1", {
 					expiration: {
